@@ -59,10 +59,4 @@ New tasks and suites will be added gradually as the PoliScore ecosystem evolves.
 
 MIT License.
 
----
 
-## Citation
-
-If you reference PoliBench in research:
-
-Rowlands, Richard. "PoliBench: A Benchmark Suite for Policy Reasoning." 2025.
