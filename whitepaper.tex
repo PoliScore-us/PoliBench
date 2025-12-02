@@ -10,6 +10,7 @@
 \usepackage{geometry}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{tikz}
 \geometry{margin=1in}
 
 \setlength{\parskip}{0.8em}
@@ -23,23 +24,26 @@
 }
 
 \title{\textbf{PoliScore:\\
-A Framework and Benchmark Suite for Policy Quality Engineering}\\[0.5em]
-\large Version 0.1 --- \today}
+From Policy Quality Engineering to Legislative Performance Grading}\\[0.5em]
+\large Version 0.2 --- \today}
 \date{}
-
 
 \begin{document}
 
 \maketitle
 
 \begin{center}
-\textit{\footnotesize Disclaimer: The methodologies, frameworks, and evaluation systems described in this white paper represent an ongoing research and engineering effort. Certain components are partially implemented or in active development. Current production features of PoliScore may not yet reflect the full framework outlined herein.}
+\textit{\footnotesize Disclaimer: The methodologies, frameworks, and evaluation systems described in this white paper represent an ongoing research and engineering effort. Certain components are partially implemented or in active development. Some production features currently deployed on \texttt{poliscore.us} reflect earlier or simplified versions of this framework and should be interpreted as experimental demonstrations rather than complete implementations of the system described herein.}
 \end{center}
 
 \begin{abstract}
-    This white paper introduces PoliScore, a first-principles framework for evaluating the structural quality of public policy, and PoliBench, a companion benchmark suite for assessing AI systems’ competence in policy reasoning. Despite the central role of legislation in shaping societal outcomes, there is currently no unified, non-partisan standard for determining whether a proposed policy is well-designed, feasible, fiscally coherent, institutionally sound, and likely to achieve its stated goals. PoliScore addresses this gap by defining seven core dimensions of policy quality—problem clarity, evidence support, implementation feasibility, economic sustainability, distributional impact, governance integrity, and systemic risk—derived from foundational insights in political philosophy, welfare economics, institutional theory, and systems engineering.
+This white paper introduces PoliScore, a first-principles framework and computational pipeline for evaluating both the structural quality of public policy and the aggregate legislative performance of elected officials. At the bill level, PoliScore defines a seven-pillar theory of policy quality---problem clarity, evidence support, implementation feasibility, economic sustainability, distributional impact, governance integrity, and systemic risk---derived from foundational insights in political philosophy, welfare economics, institutional theory, and systems engineering. These dimensions are then mapped into a sectoral impact model that scores legislation on its predicted effects across major policy domains (such as healthcare, education, energy, and national defense) and an overall ``Overall Impact to Society'' metric.
 
-PoliBench operationalizes this framework into reproducible evaluation tasks that test an AI system’s ability to identify causal mechanisms, anticipate unintended consequences, detect governance vulnerabilities, analyze distributional effects, and evaluate feasibility constraints directly from legislative text. Together, PoliScore and PoliBench provide the foundation for a new discipline of policy quality engineering, offering structured, transparent, and interpretable methods for analyzing public policy prior to implementation. The paper concludes by outlining limitations, ethical considerations, the role of constrained web search in evidence retrieval, and opportunities for future research and institutional collaboration.
+At the legislator level, PoliScore aggregates bill-level impact scores using a transparent model of legislative interactions (sponsorship, co-sponsorship, and roll-call votes), producing scalar performance scores and interpretable letter grades for each legislator. The same framework supports parameterized natural-language summaries that explain a legislator's record in terms accessible to non-expert voters.
+
+PoliBench, a companion benchmark suite, operationalizes the seven-pillar framework into reproducible evaluation tasks that test an AI system's ability to carry out policy reasoning, foresee unintended consequences, identify governance vulnerabilities, and reason about distributional and sectoral impacts directly from legislative text. Although PoliScore is currently implemented using large language models, the underlying methodology is \emph{model-agnostic}: in principle, the same process could be executed by teams of human analysts following a shared rubric or by alternative AI systems.
+
+Together, PoliScore and PoliBench provide the foundation for a new discipline of \textit{policy quality engineering}, while also demonstrating a concrete, end-to-end pipeline from bill analysis to legislator grading. The paper concludes with limitations, ethical considerations, discussion of web-integrated evidence retrieval, and directions for future research and institutional collaboration.
 \end{abstract}
 
 \newpage
@@ -53,11 +57,36 @@ PoliBench operationalizes this framework into reproducible evaluation tasks that
 \section{Introduction}
 \label{sec:intro}
 
-Public policy shapes the daily lives of individuals and the long-term trajectory of nations. Yet despite its immense influence, there is no widely accepted, non-partisan standard for evaluating the quality of legislation before it is enacted. Policymakers, analysts, and the public rely on fragmented tools such as budget scoring, partisan think-tank reports, post-hoc program evaluations, or ideological frameworks. These tools, while useful in isolation, do not provide a comprehensive or predictive understanding of whether a proposed policy is well-designed, feasible, equitable, or beneficial in practice.
+Public policy shapes the daily lives of individuals and the long-term trajectory of societies. Yet despite its immense influence, there is no widely accepted, non-partisan standard for evaluating the quality of legislation before it is enacted, nor a unified methodology for summarizing the long-run legislative performance of elected officials in terms ordinary voters can understand.
 
-Advances in artificial intelligence now make it possible to analyze complex policy texts at scale, but AI alone cannot fill this gap unless grounded in a coherent philosophical and methodological foundation. What is needed is not merely an automated analysis tool, but a rigorous theory of policy quality capable of guiding, constraining, and evaluating both human and machine reasoning about legislation.
+Voters face an increasingly impossible informational task. Organized misinformation campaigns, partisan media ecosystems, and attention-maximizing social platforms collectively produce a high-noise environment in which the underlying policy record of legislators is difficult to discern. It is easy to surface a few symbolic votes or speeches; it is far harder to understand the cumulative impact of years of legislative activity on real human outcomes.
 
-PoliScore introduces such a framework, supported by PoliBench, a benchmark suite that operationalizes these ideas into concrete, reproducible evaluation tasks.
+At the same time, advances in artificial intelligence have made it possible to read and reason over large volumes of legislative text, related reports, and contextual evidence. Used carefully, AI can help bridge the gap between raw policy artifacts and structured, interpretable assessments. Used naively, AI risks becoming a new kind of opaque authority, or simply a ``magic wand'' that produces persuasive but ungrounded judgments.
+
+PoliScore is built to occupy the space between these extremes. It is not merely a scoring engine or a dashboard, but an attempt to:
+
+\begin{itemize}
+    \item define a rigorous, academically grounded theory of policy quality,
+    \item formalize a repeatable process for evaluating bills along that theory,
+    \item translate those evaluations into sectoral and overall impact scores,
+    \item aggregate impacts into transparent, interpretable legislator grades,
+    \item and provide benchmark tasks for testing the AI systems used along the way.
+\end{itemize}
+
+The long-term vision is simple:
+
+\begin{quote}
+\textit{If we can show that we can evaluate bills in a non-partisan, well-grounded, and reproducible way, then we can evaluate legislators by aggregating the impacts of their bill-level interactions.}
+\end{quote}
+
+PoliScore therefore has two tightly coupled layers:
+
+\begin{enumerate}
+    \item a \textbf{policy quality layer}, which evaluates the structure, evidence base, and predicted societal impact of individual bills; and
+    \item a \textbf{legislator performance layer}, which aggregates those bill-level impacts according to how legislators sponsor, co-sponsor, and vote on them.
+\end{enumerate}
+
+This white paper describes the theoretical foundations of PoliScore, its bill-level framework, the sectoral and overall impact model, the legislator aggregation logic, and the PoliBench benchmark suite used to validate AI systems in this domain. While the current implementation uses AI models as evaluators, the process is designed to be model-agnostic and could, in principle, be executed by human analysts following the same rubric.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%   SECTION 1   %%%%%%%%%%%%%%%%%%%%%
@@ -73,12 +102,12 @@ At the core of any political system lies a simple and empirically grounded truth
 This principle is not ideological. It traces broadly through the history of philosophy and public policy, from classical notions of basic welfare to modern frameworks such as:
 
 \begin{itemize}
-    \item Maslow's hierarchy of needs (Maslow, 1943)
-    \item Sen's capabilities approach (Sen, 1999)
-    \item Rawlsian justice as fairness (Rawls, 1971)
-    \item Nussbaum's list of central human capabilities (Nussbaum, 2006)
-    \item The UN Human Development Index (UNDP, 1990)
-    \item OECD Better Life Index (OECD, 2011)
+    \item Maslow's hierarchy of needs (Maslow, 1943),
+    \item Sen's capabilities approach (Sen, 1999),
+    \item Rawlsian justice as fairness (Rawls, 1971),
+    \item Nussbaum's list of central human capabilities (Nussbaum, 2006),
+    \item the UN Human Development Index (UNDP, 1990),
+    \item the OECD Better Life Index (OECD, 2011).
 \end{itemize}
 
 The implication is straightforward: policies ultimately exist to alter societal conditions in ways that affect these human needs. Therefore, any concept of policy quality must begin with the recognition of these universal determinants of human well-being.
@@ -122,32 +151,25 @@ PoliScore formalizes this into seven universal dimensions derived directly from 
 
 \begin{enumerate}
     \item \textbf{Problem Clarity \& Causal Validity}\\
-    Does the policy accurately diagnose the underlying issue and target the relevant causal mechanisms?\\
-    \textit{Grounding: Popper (1957); Sen (1987).}
+    Does the policy accurately diagnose the underlying issue and target the relevant causal mechanisms?
 
     \item \textbf{Evidence Base \& Empirical Support}\\
-    Is the proposed intervention supported by empirical research, historical precedent, or meaningful comparative data?\\
-    \textit{Grounding: Evidence-based policy literature.}
+    Is the proposed intervention supported by empirical research, historical precedent, or meaningful comparative data?
 
     \item \textbf{Implementation Feasibility}\\
-    Can existing institutions realistically execute the policy given resource, logistical, administrative, and temporal constraints?\\
-    \textit{Grounding: Herbert Simon (1947); implementation science.}
+    Can existing institutions realistically execute the policy given resource, logistical, administrative, and temporal constraints?
 
     \item \textbf{Economic Efficiency \& Fiscal Sustainability}\\
-    Does the policy use resources responsibly, minimize waste, and avoid unsustainable long-term obligations?\\
-    \textit{Grounding: North (1990); welfare economics.}
+    Does the policy use resources responsibly, minimize waste, and avoid unsustainable long-term obligations?
 
     \item \textbf{Distributional Impact \& Fairness}\\
-    How are benefits and burdens distributed across populations, and does the policy unjustifiably disadvantage certain groups?\\
-    \textit{Grounding: Rawls (1971); Sen (1999).}
+    How are benefits and burdens distributed across populations, and does the policy unjustifiably disadvantage certain groups?
 
     \item \textbf{Governance Integrity \& Institutional Risk}\\
-    Does the policy maintain transparency, accountability, and resilience while minimizing opportunities for corruption or abuse?\\
-    \textit{Grounding: Ostrom (1990); public choice theory.}
+    Does the policy maintain transparency, accountability, and resilience while minimizing opportunities for corruption or abuse?
 
     \item \textbf{Unintended Consequences \& Systemic Risk}\\
-    Does the policy introduce fragility, perverse incentives, or cascading failures that undermine the intended outcomes?\\
-    \textit{Grounding: Popper (1945); Buchanan (1962).}
+    Does the policy introduce fragility, perverse incentives, or cascading failures that undermine the intended outcomes?
 \end{enumerate}
 
 These seven pillars are not ideological criteria. They are derived from the intersection of:
@@ -198,7 +220,7 @@ By synthesizing philosophical foundations, institutional economics, governance t
 \textbf{Policy Quality Engineering:} the systematic, reproducible evaluation of public policy according to universal human needs, societal benefit, and institutional feasibility.
 \end{quote}
 
-This white paper establishes the theoretical basis for that discipline.
+The rest of this paper develops both the theoretical and practical aspects of this discipline and shows how it can be extended from bill-level analysis to legislator-level performance grading.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%   SECTION 2   %%%%%%%%%%%%%%%%%%%%%
@@ -234,10 +256,6 @@ A policy demonstrates clarity and causal validity when:
 
 Policies that rest on untested assumptions, moral panic, or ideological narratives---rather than a valid causal model---score poorly on this dimension.
 
-\textbf{Philosophical grounding:} Popper (1957), Sen (1987).\\
-\textbf{Practical relevance:} Policy failures due to incorrect problem diagnosis.\\
-\textbf{Computational challenge:} Extracting causal structures from bill text.
-
 \subsection{Evidence Base \& Empirical Support}
 
 High-quality policy proposals demonstrate clear grounding in empirical research, comparative case studies, or validated theoretical frameworks. This dimension evaluates whether the intervention is supported by evidence that similar approaches have succeeded elsewhere, or whether its expected outcomes are consistent with existing knowledge.
@@ -252,13 +270,9 @@ Relevant criteria include:
 
 Policies lacking empirical grounding may rely on wishful thinking or unproven assumptions, increasing the risk of unintended harm.
 
-\textbf{Philosophical grounding:} Evidence-based policy literature.\\
-\textbf{Practical relevance:} Avoiding ``policy theater'' and ineffective reforms.\\
-\textbf{Computational challenge:} Mapping bill provisions to known empirical findings.
-
 \subsection{Implementation Feasibility}
 
-Even a theoretically sound policy can fail if it is infeasible to implement. Feasibility depends on the capacity of institutions, agencies, and local systems to carry out the policy’s mandates with available resources, logistics, workforce, technology, and time.
+Even a theoretically sound policy can fail if it is infeasible to implement. Feasibility depends on the capacity of institutions, agencies, and local systems to carry out the policy's mandates with available resources, logistics, workforce, technology, and time.
 
 This dimension evaluates:
 \begin{itemize}
@@ -271,10 +285,6 @@ This dimension evaluates:
 \end{itemize}
 
 Policies that impose unrealistic workloads, require nonexistent infrastructure, or centralize responsibility in ways that exceed institutional capacity receive low scores.
-
-\textbf{Philosophical grounding:} Herbert Simon (1947), implementation science.\\
-\textbf{Practical relevance:} Real-world failure modes of legislation.\\
-\textbf{Computational challenge:} Inferring administrative burden from text structure.
 
 \subsection{Economic Efficiency \& Fiscal Sustainability}
 
@@ -292,13 +302,9 @@ Considerations include:
 
 Policies that rely on implausible revenue assumptions, produce excessive deadweight loss, or generate persistent deficits score poorly.
 
-\textbf{Philosophical grounding:} North (1990); welfare economics.\\
-\textbf{Practical relevance:} Long-term macroeconomic stability.\\
-\textbf{Computational challenge:} Mapping provisions to economic impacts.
-
 \subsection{Distributional Impact \& Fairness}
 
-Public policies distribute benefits and burdens across different groups within society. A high-quality policy should not impose disproportionate harm on specific populations or create unjustifiable imbalances in who gains and who loses. This dimension evaluates how a policy’s effects are spread across income levels, regions, industries, and demographic groups, and whether these effects align with broadly accepted principles of fairness and responsible governance.
+Public policies distribute benefits and burdens across different groups within society. A high-quality policy should not impose disproportionate harm on specific populations or create unjustifiable imbalances in who gains and who loses. This dimension evaluates how a policy's effects are spread across income levels, regions, industries, and demographic groups, and whether these effects align with broadly accepted principles of fairness and responsible governance.
 
 Key considerations include:
 \begin{itemize}
@@ -310,10 +316,6 @@ Key considerations include:
 \end{itemize}
 
 This pillar does not require or assume equal outcomes. Instead, it assesses whether the distribution of impacts is justified, defensible, and consistent with the stated goals of the policy, and whether any imbalances introduce meaningful risk or undue harm.
-
-\textbf{Philosophical grounding:} Rawls (1971); Sen (1999).\\
-\textbf{Practical relevance:} Avoiding regressive or disproportionate policy effects.\\
-\textbf{Computational challenge:} Inferring distributional impacts from textual provisions.
 
 \subsection{Governance Integrity \& Institutional Risk}
 
@@ -331,10 +333,6 @@ Key criteria:
 
 Policies that concentrate discretionary power in unaccountable agencies, lack oversight, or create opportunities for corruption receive lower scores.
 
-\textbf{Philosophical grounding:} Ostrom (1990), Buchanan (1962).\\
-\textbf{Practical relevance:} Preventing governance failures and political fragility.\\
-\textbf{Computational challenge:} Detecting governance structures from text.
-
 \subsection{Unintended Consequences \& Systemic Risk}
 
 Complex systems often respond unpredictably to policy interventions. This dimension assesses the extent to which a policy may produce harmful unintended consequences, including perverse incentives, moral hazard, market failures, bureaucratic overload, or cascading systemic risks.
@@ -351,39 +349,320 @@ Evaluative criteria include:
 
 Policies that appear beneficial in theory but introduce hidden structural costs or vulnerabilities receive lower scores.
 
-\textbf{Philosophical grounding:} Popper (1945); systems theory.\\
-\textbf{Practical relevance:} Preventing policy backfires and crises.\\
-\textbf{Computational challenge:} Predicting multi-system interactions.
+\subsection{Sectoral Impact Model and Overall Impact to Society}
+\label{subsec:sectoral}
+
+The seven pillars described above characterize \emph{structural policy quality}. To connect these abstractions to concrete societal outcomes, PoliScore introduces a sectoral impact model and a scalar ``Overall Impact to Society'' score for each bill.
+
+For each bill \(b\), PoliScore defines a set of sectoral impact scores:
+\[
+I_{b,s} \in [-100, 100] \cup \{\text{N/A}\}
+\]
+for each sector \(s\) in a fixed set \(\mathcal{S}\) that includes, at minimum:
+
+\begin{itemize}
+    \item Agriculture and Food
+    \item Education
+    \item Transportation
+    \item Economics and Commerce
+    \item Foreign Relations
+    \item Government Efficiency and Management
+    \item Healthcare
+    \item Housing
+    \item Energy
+    \item Technology
+    \item Immigration
+    \item National Defense
+    \item Crime and Law Enforcement
+    \item Wildlife and Forest Management
+    \item Public Lands and Natural Resources
+    \item Environmental Management and Climate Change
+\end{itemize}
+
+Each sector score is rated from \(-100\) (very harmful) to \(0\) (neutral) to \(+100\) (very helpful), or marked as N/A when the sector is not meaningfully affected by the bill.
+
+From this sectoral vector, PoliScore defines an ``Overall Impact to Society'' score:
+\[
+I_b^{\ast} \in [-100, 100],
+\]
+representing a synthetic estimate of the bill's aggregate impact on societal well-being, considering the interaction of all affected sectors.
+
+In practice, \(I_{b,s}\) and \(I_b^{\ast}\) are produced by an evaluator (currently an AI model) that:
+
+\begin{enumerate}
+    \item reads the bill text,
+    \item applies the seven-pillar framework to understand structure, feasibility, and risks,
+    \item performs constrained research where appropriate, and
+    \item assigns sectoral scores and an overall score with an accompanying natural-language justification.
+\end{enumerate}
+
+The sectoral model and overall score serve as the bridge between abstract policy quality and concrete societal impact, and they are the primary inputs into legislator-level aggregation described in Section~\ref{sec:pipeline}.
 
 \subsection*{Summary of the Framework}
 
-Together, these seven dimensions form a holistic, first-principles model of policy quality. They address not only a policy’s intent and potential benefits, but also its feasibility, fairness, evidence base, institutional risks, and long-term sustainability.
+Together, these seven structural dimensions and the sectoral / overall impact model form a holistic, first-principles representation of policy quality. They address not only a policy's intent and potential benefits, but also its feasibility, fairness, evidence base, institutional risks, and long-term sustainability.
 
 The PoliScore framework is designed to:
 \begin{itemize}
     \item provide structured, rational evaluation of legislation;
     \item enable reproducible scoring across policies and time;
-    \item support AI-assisted legislative analysis;
+    \item support AI-assisted and human-driven legislative analysis;
     \item inform policymakers, researchers, and the public;
     \item reduce reliance on ideological or partisan heuristics.
 \end{itemize}
 
-This framework also provides the theoretical foundation for PoliBench, the benchmark suite introduced in Section~\ref{sec:polibench}, which tests whether AI systems can reliably interpret and evaluate policy quality along these seven dimensions.
+This framework also provides the theoretical foundation for both the bill-to-legislator pipeline (Section~\ref{sec:pipeline}) and the PoliBench benchmark suite (Section~\ref{sec:polibench}), which tests whether AI systems can reliably interpret and evaluate policy quality along these dimensions.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 3   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   NEW SECTION: PIPELINE   %%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{From Bills to Legislators: The PoliScore Impact Pipeline}
+\label{sec:pipeline}
+
+PoliScore is ultimately designed to answer two questions:
+
+\begin{enumerate}
+    \item \textbf{Bill-level question:} What is the predicted impact of this bill on society?
+    \item \textbf{Legislator-level question:} Over the course of their recent history, what has this legislator actually done for (or to) the public through their legislative actions?
+\end{enumerate}
+
+This section describes the multi-stage pipeline that connects the seven-pillar framework and sectoral impact model to legislator performance scores and letter grades.
+
+\subsection{High-Level Pipeline Overview}
+
+Conceptually, the end-to-end pipeline can be summarized as:
+
+\begin{enumerate}
+    \item Bill text is segmented and analyzed under the PoliScore framework.
+    \item A sectoral impact vector and an ``Overall Impact to Society'' score are produced for each bill.
+    \item Legislator--bill interactions (sponsorship, co-sponsorship, and votes) are collected.
+    \item Each legislator's aggregate impact score is computed as a weighted function of the overall bill impact scores.
+    \item Legislators and bills receive letter grades derived from their scalar impact scores.
+    \item Parameterized natural-language summaries translate these metrics into human-readable narratives.
+\end{enumerate}
+
+Figure~\ref{fig:pipeline} depicts this process.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[node distance=2.5cm, >=stealth,
+    every node/.style={rectangle, rounded corners, draw, align=center, minimum width=3cm, minimum height=1cm}]
+    \node (bills) {Legislative\\Text};
+    \node (pillars) [right of=bills] {Seven-Pillar\\Policy Quality Analysis};
+    \node (sectors) [right of=pillars] {Sectoral Impact\\Scores};
+    \node (overall) [right of=sectors] {Overall Impact\\to Society};
+    \node (leg) [right of=overall] {Legislator\\Impact Scores\\\& Grades};
+
+    \draw[->] (bills) -- (pillars);
+    \draw[->] (pillars) -- (sectors);
+    \draw[->] (sectors) -- (overall);
+    \draw[->] (overall) -- (leg);
+\end{tikzpicture}
+\caption{High-level PoliScore pipeline from bill text to legislator grades.}
+\label{fig:pipeline}
+\end{figure}
+
+While this pipeline is currently implemented using AI systems as the primary evaluators, each step is defined in a way that could be executed by trained human analysts following the same rubric.
+
+\subsection{Bill-Level Scoring Prompt and Outputs}
+
+In its current instantiation, PoliScore uses a structured evaluation template for bill-level scoring. The evaluator (AI model or human) is asked to behave as a non-partisan oversight committee, reading full bill text and producing:
+
+\begin{itemize}
+    \item sectoral impact scores \(I_{b,s}\),
+    \item an ``Overall Impact to Society'' score \(I_b^{\ast}\),
+    \item short and long-form explanatory reports, and
+    \item a self-rated confidence score.
+\end{itemize}
+
+The template for the Stats section is:
+
+\begin{quote}
+\texttt{Stats:}\\
+\texttt{Score the following bill on the estimated impact to the United States upon the following criteria, rated from -100 (very harmful) to 0 (neutral) to +100 (very helpful) or N/A if it is not relevant.}\\
+
+\texttt{Agriculture and Food: <score or N/A>}\\
+\texttt{Education: <score or N/A>}\\
+\texttt{Transportation: <score or N/A>}\\
+\texttt{Economics and Commerce: <score or N/A>}\\
+\texttt{Foreign relations: <score or N/A>}\\
+\texttt{Government Efficiency and Management: <score or N/A>}\\
+\texttt{Healthcare: <score or N/A>}\\
+\texttt{Housing: <score or N/A>}\\
+\texttt{Energy: <score or N/A>}\\
+\texttt{Technology: <score or N/A>}\\
+\texttt{Immigration: <score or N/A>}\\
+\texttt{National Defense: <score or N/A>}\\
+\texttt{Crime and Law Enforcement: <score or N/A>}\\
+\texttt{Wildlife and Forest Management: <score or N/A>}\\
+\texttt{Public Lands and Natural Resources: <score or N/A>}\\
+\texttt{Environmental Management and climate change: <score or N/A>}\\
+\texttt{Overall Impact to society: <score or N/A>}
+\end{quote}
+
+Additional sections provide a descriptive title, a short report, a long report referencing specific bill provisions, and a numeric confidence score.
+
+\subsection{Aggregating Sectoral Scores into Overall Impact}
+
+The ``Overall Impact to Society'' score \(I_b^{\ast}\) may be produced in one of two ways:
+
+\begin{enumerate}
+    \item \textbf{Direct overall assessment.} The evaluator directly assigns \(I_b^{\ast}\) based on holistic reasoning over the bill and its context.
+    \item \textbf{Derived aggregation.} The evaluator provides only sectoral scores \(I_{b,s}\), and the system computes:
+    \[
+    I_b^{\ast} = f(\{I_{b,s}\}_{s \in \mathcal{S}}),
+    \]
+    where \(f\) is an aggregation function (e.g., a weighted average of non-N/A sector scores).
+\end{enumerate}
+
+In practice, PoliScore can use both approaches simultaneously: the evaluator provides a direct overall score, and the system cross-checks it against a derived aggregate. Discrepancies can be logged for analysis, calibration, or human review.
+
+A simple, transparent aggregation rule is:
+
+\[
+I_b^{\ast} = \frac{\sum_{s \in \mathcal{S}_{b}} w_s I_{b,s}}{\sum_{s \in \mathcal{S}_{b}} |w_s|},
+\]
+where \(\mathcal{S}_{b}\) is the set of sectors marked as relevant (non-N/A) for bill \(b\), and \(w_s\) are sector weights. In the earliest implementation, \(w_s = 1\) for all sectors, yielding an unweighted average. More sophisticated variants may:
+
+\begin{itemize}
+    \item estimate \(w_s\) from public opinion and expert surveys;
+    \item tune \(w_s\) based on empirical outcomes of historical legislation;
+    \item incorporate robustness constraints (e.g., penalize extreme scores confined to a single sector).
+\end{itemize}
+
+The key requirement is that the mapping from sectoral scores to overall impact is formally defined, transparent, and stable over the evaluation period.
+
+\subsection{Legislator--Bill Interaction Model}
+
+Legislators interact with bills in recognizable ways: they sponsor them, co-sponsor them, and vote for or against them. Let:
+
+\begin{itemize}
+    \item \(\mathcal{B}\) denote the set of bills,
+    \item \(\mathcal{L}\) denote the set of legislators,
+    \item \(I_b^{\ast}\) denote the overall impact score of bill \(b\),
+    \item \(T \in \{\text{Sponsor}, \text{CoSponsor}, \text{VotedFor}, \text{VotedAgainst}\}\) denote the type of interaction.
+\end{itemize}
+
+PoliScore defines weights \(w_T\) for each interaction type, reflecting both normative judgment and intuitive voter expectations. A simple weighting scheme currently used in practice is:
+
+\begin{align*}
+w_{\text{Sponsor}} &= 1.0, \\
+w_{\text{CoSponsor}} &= 0.7, \\
+w_{\text{VotedFor}} &= 0.5, \\
+w_{\text{VotedAgainst}} &= -0.5.
+\end{align*}
+
+The negative weight for \(\text{VotedAgainst}\) indicates that opposing a harmful bill (\(I_b^{\ast} < 0\)) generates positive credit, while opposing a beneficial bill (\(I_b^{\ast} > 0\)) generates negative credit.
+
+For a given legislator \(\ell \in \mathcal{L}\), let \(\mathcal{I}_{\ell}\) denote the set of all (bill, interaction-type) pairs in which they participate. The legislator's raw impact score \(S_{\ell}\) is defined as:
+
+\[
+S_{\ell} = \frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} w_T \, I_b^{\ast}}{\sum_{(b, T) \in \mathcal{I}_{\ell}} |w_T|}.
+\]
+
+This formulation:
+
+\begin{itemize}
+    \item credits legislators for sponsoring and supporting beneficial bills,
+    \item debits them for supporting harmful bills,
+    \item rewards them for opposing harmful bills,
+    \item penalizes them for opposing beneficial bills,
+    \item normalizes scores so that legislators with many interactions are comparable to those with fewer.
+\end{itemize}
+
+Alternative weighting schemes can be explored (for example, increasing the weight of sponsorship relative to floor votes), but any change must be documented and kept constant for the period being analyzed.
+
+\subsection{Letter Grades for Bills and Legislators}
+
+To make the results accessible to voters, PoliScore converts raw impact scores into letter grades.
+
+For bills, the letter grade is derived directly from \(I_b^{\ast}\); for legislators, from \(S_{\ell}\). A simple and currently deployed mapping is:
+
+\begin{align*}
+    \text{A} &: I \geq 40, \\
+    \text{B} &: 30 \leq I < 40, \\
+    \text{C} &: 15 \leq I < 30, \\
+    \text{D} &: 0 \leq I < 15, \\
+    \text{F} &: I < 0,
+\end{align*}
+where \(I\) is either a bill's overall impact score \(I_b^{\ast}\) or a legislator's aggregate score \(S_{\ell}\).
+
+These thresholds are intentionally simple and interpretable. They are not meant to be perfect statistical constructs, but to provide a consistent, monotonic mapping between scalar impact scores and an intuitive grading scale familiar to the public.
+
+\subsection{Parameterized Legislator Summaries}
+
+Numerical scores and letter grades provide clarity and comparability, but they do not by themselves tell a story. To bridge this gap, PoliScore uses parameterized natural-language prompts that consume:
+
+\begin{itemize}
+    \item a legislator's aggregate impact statistics by sector,
+    \item their overall letter grade,
+    \item a curated list of their most consequential bill interactions.
+\end{itemize}
+
+A generalized template is:
+
+\begin{quote}
+\texttt{The United States \{\{politicianType\}\} \{\{fullName\}\} has been evaluated based on recent legislative performance and has received the following policy area grades (scores range from -100 to 100):}\\
+
+\texttt{\{\{stats\}\}}\\[0.5em]
+\texttt{Based on these scores, this legislator has received the overall letter grade: \{\{letterGrade\}\}. You will be given bill interaction summaries of this politician's recent legislative history, sorted by their impact to the relevant policy area grades. Please generate a layman's, concise, three paragraph, \{\{analysisType\}\}, highlighting any \{\{behavior\}\}, identifying trends, referencing specific bill titles (in quotes), and pointing out major focuses and priorities of the legislator. Focus on the policy areas with the largest score magnitudes (either positive or negative). Do not include the legislator's policy area grade scores and do not mention their letter grade in your summary.}\\
+
+\texttt{\{\{billInteractions\}\}}
+\end{quote}
+
+Where:
+
+\begin{itemize}
+    \item \texttt{politicianType} is ``Senator'' or ``House Representative'',
+    \item \texttt{fullName} is the legislator's name,
+    \item \texttt{stats} is a textual rendering of sectoral scores,
+    \item \texttt{letterGrade} is the overall grade,
+    \item \texttt{analysisType} is one of ``endorsement'', ``mixed analysis'', or ``harsh critique'', chosen based on the letter grade,
+    \item \texttt{behavior} describes whether to emphasize accomplishments, alarming behavior, or both,
+    \item \texttt{billInteractions} is a list of the legislator's most impactful bill interactions by sector and magnitude.
+\end{itemize}
+
+This design allows the system to vary tone in a controlled, transparent way while keeping the underlying scoring rules fixed.
+
+\subsection{AI Behavior, Training Data, and Non-Partisan Prompts}
+
+PoliScore's bill-level evaluations are intended to be non-partisan and rooted in ``Overall Impact to Society''. Three properties of modern language models make this goal plausible when combined with careful prompt design:
+
+\begin{enumerate}
+    \item \textbf{Frequency weighting.} Model predictions are influenced by patterns frequently observed in training data. Because training corpora contain large volumes of books, encyclopedias, and mainstream reporting, many of the model's ``default'' positions track the most commonly articulated views in those sources.
+
+    \item \textbf{Contextual weighting.} Given a specific prompt, the model preferentially draws from portions of its training data that match the requested context (e.g., technical analysis vs.\ jokes). When prompted as a non-partisan oversight committee asked to cite scientific studies, official reports, and expert opinions, the model tends to prioritize more authoritative and technical contexts.
+
+    \item \textbf{Coherence pressure.} To answer PoliScore-style prompts, a model must synthesize scattered facts and arguments into a single coherent narrative that satisfies multiple constraints (sectoral scoring, justification, trade-off analysis). This encourages structured reasoning rather than surface-level slogan repetition.
+\end{enumerate}
+
+PoliScore reinforces non-partisanship through explicit design choices:
+
+\begin{itemize}
+    \item prompts emphasize ``Overall Impact to Society'' rather than partisan advantage,
+    \item the aggregation logic is mechanically neutral and publicly documented,
+    \item funding and governance of the project aim to remain independent of party structures,
+    \item outputs are transparent and inspectable both at bill and legislator levels.
+\end{itemize}
+
+At the same time, AI systems can inherit biases from their training data, including policy preferences that align with majority public or scientific opinion on issues such as renewable energy, reproductive rights, or gun policy. Rather than denying this, PoliScore presents its outputs as a structured reflection of how a capable model, prompted to be non-partisan, reconciles expert and public consensus with the specifics of legislative text. Users are encouraged to examine the underlying justifications and decide for themselves whether they agree with the resulting grades.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 3 (OLD 3): POLIBENCH %%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{The PoliBench Benchmark Suite}
 \label{sec:polibench}
 
-The PoliBench Benchmark Suite is a standardized set of tests designed to evaluate whether AI systems can accurately assess public policy along the seven dimensions of the PoliScore Framework. Whereas PoliScore provides the conceptual model for policy quality, PoliBench operationalizes that model into concrete, reproducible tasks that measure an AI system’s ability to reason about legislative intent, feasibility, consequences, and institutional design.
+The PoliBench Benchmark Suite is a standardized set of tests designed to evaluate whether AI systems can accurately assess public policy along the seven dimensions of the PoliScore Framework and reason coherently about sectoral and overall societal impacts. Whereas PoliScore provides the conceptual model and pipeline for policy quality and legislator performance, PoliBench operationalizes those ideas into concrete, reproducible tasks that measure an AI system's ability to interpret legislative intent, feasibility, consequences, and institutional design.
 
 PoliBench is not intended as a performance leaderboard for general AI capabilities. Rather, it is a domain-specific benchmark focused on policy reasoning, causal inference, and institutional awareness---areas where existing language models often demonstrate gaps despite strong natural language proficiency. The benchmark enables systematic comparison across AI systems and provides an empirical foundation for evaluating progress in computational policy analysis.
 
 \subsection{Motivation}
 
 Despite rapid advances in large language models (LLMs), there is currently no standardized method for testing their ability to interpret legislation or assess public policy quality. Existing AI benchmarks measure skills such as:
+
 \begin{itemize}
     \item question answering (SQuAD, Natural Questions),
     \item general knowledge (MMLU),
@@ -393,11 +672,12 @@ Despite rapid advances in large language models (LLMs), there is currently no st
 \end{itemize}
 
 None of these capture the skills required for policy evaluation, such as:
+
 \begin{itemize}
     \item recognizing ambiguous or misleading problem statements;
     \item detecting infeasible mandates;
     \item identifying governance risks;
-    \item reasoning about distributional impacts;
+    \item reasoning about distributional impacts and sectoral tradeoffs;
     \item understanding institutional constraints;
     \item anticipating unintended consequences;
     \item evaluating evidence claims in context.
@@ -411,111 +691,65 @@ PoliBench is designed to achieve five key objectives:
 
 \begin{enumerate}[label=(\arabic*)]
     \item \textbf{Evaluate policy-specific reasoning}\\
-    Measure whether an AI system can analyze legislative text in ways aligned with the PoliScore pillars.
+    Measure whether an AI system can analyze legislative text in ways aligned with the PoliScore pillars and sectoral impact model.
+
     \item \textbf{Provide reproducible, standardized tests}\\
     Ensure that models are evaluated under identical conditions, enabling meaningful comparisons.
+
     \item \textbf{Identify structural weaknesses in AI policy analysis}\\
     Pinpoint which dimensions (e.g., feasibility, unintended consequences) pose the greatest difficulty for current models.
+
     \item \textbf{Support model improvement}\\
     Provide researchers with targeted diagnostics for training and fine-tuning AI systems on legislative reasoning tasks.
+
     \item \textbf{Promote transparency and accountability}\\
     Allow policymakers, academics, and the public to understand the strengths and limitations of AI in this domain.
 \end{enumerate}
 
 \subsection{Benchmark Structure}
 
-PoliBench is organized into seven test suites, one for each dimension of the PoliScore Framework. Each suite contains multiple task types, designed to assess both conceptual understanding and applied reasoning.
+PoliBench is organized into seven test suites, one for each structural dimension of the PoliScore Framework, plus optional suites for sectoral impact prediction and legislator-level aggregation consistency. Each suite contains multiple task types, designed to assess both conceptual understanding and applied reasoning.
 
-\subsubsection*{Suite 1: Problem Clarity \& Causal Validity}
+Core task families include:
 
-Tasks include:
 \begin{itemize}
-    \item identifying unclear or incorrectly diagnosed problems;
-    \item matching policy language to causal mechanisms;
-    \item detecting irrelevant or logically inconsistent interventions.
-\end{itemize}
-
-\subsubsection*{Suite 2: Evidence Base \& Empirical Support}
-
-Tasks include:
-\begin{itemize}
-    \item identifying claims not supported by evidence;
-    \item evaluating whether a policy is consistent with known best practices;
-    \item recognizing when a bill cites evidence that does not support its claims.
-\end{itemize}
-
-\subsubsection*{Suite 3: Implementation Feasibility}
-
-Tasks include:
-\begin{itemize}
-    \item detecting unrealistic administrative burdens;
-    \item evaluating resource requirements;
-    \item identifying conflicts with existing infrastructure or legal frameworks.
-\end{itemize}
-
-\subsubsection*{Suite 4: Economic Efficiency \& Fiscal Sustainability}
-
-Tasks include:
-\begin{itemize}
-    \item predicting distortive market effects;
-    \item identifying unsustainable funding structures;
-    \item assessing whether proposed benefits justify projected costs.
-\end{itemize}
-
-\subsubsection*{Suite 5: Distributional Impact \& Fairness}
-
-Tasks include:
-\begin{itemize}
-    \item identifying groups disproportionately helped or harmed;
-    \item evaluating burden-shifting dynamics;
-    \item detecting regressive or unjustifiable distribution patterns.
-\end{itemize}
-
-\subsubsection*{Suite 6: Governance Integrity \& Institutional Risk}
-
-Tasks include:
-\begin{itemize}
-    \item identifying power concentrations without oversight;
-    \item detecting corruption or capture risks;
-    \item evaluating institutional clarity and accountability mechanisms.
-\end{itemize}
-
-\subsubsection*{Suite 7: Unintended Consequences \& Systemic Risk}
-
-Tasks include:
-\begin{itemize}
-    \item detecting perverse incentives;
-    \item forecasting cross-system impacts;
-    \item anticipating fragile dependencies or cascading failures.
+    \item problem clarity and causal validity,
+    \item evidence base and empirical support,
+    \item implementation feasibility,
+    \item economic efficiency and fiscal sustainability,
+    \item distributional impact and fairness,
+    \item governance integrity and institutional risk,
+    \item unintended consequences and systemic risk,
+    \item sectoral and overall impact estimation (optional),
+    \item bill-to-legislator aggregation reasoning (optional).
 \end{itemize}
 
 Each suite includes constructed counterexamples, fictional bills, paired policy comparisons, and scenario-based prompts that allow objective scoring.
 
-\subsection{Benchmark Format}
+\subsection{Benchmark Format and Example Tasks}
 
 Each PoliBench task is designed to be:
+
 \begin{itemize}
-    \item \emph{deterministic} --- clear pass/fail or graded criteria;
-    \item \emph{grounded} --- tied to a specific quality dimension;
-    \item \emph{text-based} --- directly applicable to legislative language;
-    \item \emph{model-agnostic} --- usable by any AI system;
+    \item \emph{deterministic} --- clear pass/fail or graded criteria,
+    \item \emph{grounded} --- tied to a specific quality dimension,
+    \item \emph{text-based} --- directly applicable to legislative language,
+    \item \emph{model-agnostic} --- usable by any AI system,
     \item \emph{transparent} --- accompanied by human-annotated rationale and expected answer patterns.
 \end{itemize}
 
-Tasks follow one of five formats:
+Tasks follow formats such as:
+
 \begin{itemize}
     \item multiple-choice reasoning tests,
     \item short-form explanation tasks,
     \item bill snippet analysis,
     \item policy comparison tasks,
-    \item error detection tasks (spot-the-flaw).
+    \item error detection tasks (spot-the-flaw),
+    \item numeric prediction of sectoral impacts for simplified scenarios.
 \end{itemize}
 
-Scoring is done through a combination of rubric-based evaluation and automated correctness checks.
-
-\subsection{Example Test Types}
-
-Below are illustrative examples from several suites.
+Illustrative examples include:
 
 \paragraph{Feasibility Example.} \mbox{}\\
 \textbf{Prompt:} A bill requires every rural county (population $< 5{,}000$) to operate a full-service emergency hospital within one year.\\
@@ -528,20 +762,20 @@ Below are illustrative examples from several suites.
 
 \paragraph{Distributional Impact Example.} \mbox{}\\
 \textbf{Prompt:} A tax credit is available only to households with mortgage interest payments.\\
-\textbf{Expected:} Benefits flow to homeowners; renters receive no support; regressive impact.
-
-(These examples will appear in the full benchmark documentation.)
+\textbf{Expected:} Benefits flow primarily to homeowners; renters receive no support; regressive impact.
 
 \subsection{Scoring and Evaluation}
 
-Each model receives:
+Each model evaluated on PoliBench receives:
+
 \begin{itemize}
-    \item a per-suite score (0--100),
+    \item per-suite scores (0--100),
     \item a composite PoliBench score,
     \item diagnostic reports identifying which dimensions require improvement.
 \end{itemize}
 
 Scores reflect:
+
 \begin{itemize}
     \item correctness,
     \item reasoning quality,
@@ -550,56 +784,39 @@ Scores reflect:
     \item sensitivity to subtle policy flaws.
 \end{itemize}
 
-By aggregating results across suites, PoliBench reveals the policy reasoning profile of an AI model.
-
-\subsection{Availability and Reproducibility}
-
-PoliBench is published as:
-\begin{itemize}
-    \item an open dataset,
-    \item a reproducible evaluation script,
-    \item documentation for scoring and reasoning analysis,
-    \item example model outputs,
-    \item version-controlled benchmark updates.
-\end{itemize}
-
-This ensures transparency and supports peer replication, academic review, and future model development.
-
-\subsection*{Summary}
-
-PoliBench operationalizes the PoliScore Framework into a rigorous test suite for evaluating AI policy reasoning. It provides the technical foundation for comparing models, understanding their limitations, and improving automated legislative analysis. By bringing structure, transparency, and reproducibility to this domain, PoliBench aims to establish a new standard for computational policymaking research.
+By aggregating results across suites, PoliBench reveals the policy reasoning profile of an AI model and determines whether it is suitable for deployment within the PoliScore evaluation pipeline.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 4   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 4: METHODOLOGY   %%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Methodology}
 \label{sec:methodology}
 
-The methodology underlying PoliScore is designed to translate legislative text into a structured evaluation across the seven dimensions of policy quality defined in Section~\ref{sec:framework}. The process combines computational analysis, domain-specific prompt engineering, and rubric-based scoring to produce a transparent, interpretable assessment of a policy proposal’s strengths and weaknesses.
+The methodology underlying PoliScore is designed to translate legislative text into a structured evaluation across the seven dimensions of policy quality, sectoral and overall societal impact, and finally legislator performance. The process combines computational analysis, domain-specific prompt engineering, and rubric-based scoring to produce a transparent, interpretable assessment of both policies and legislators.
 
-PoliScore does not replace political judgment or override democratic deliberation. Rather, it provides a systematic framework for analyzing legislation in a manner that is consistent, reproducible, and grounded in well-established principles of public policy, institutional design, economics, and governance.
+Crucially, the methodology is \emph{process-first}: AI models are current instantiations of the evaluator, but the pipeline itself is defined in a model-agnostic way that could be executed by trained human raters or alternative AI systems.
 
-The methodological approach consists of four integrated components:
+The methodological approach consists of five integrated components:
+
 \begin{enumerate}
     \item Text Preparation,
-    \item Dimension-Level Evaluation,
-    \item Scoring and Aggregation,
+    \item Dimension-Level Policy Evaluation,
+    \item Sectoral and Overall Impact Scoring,
+    \item Legislator Aggregation and Grading,
     \item Interpretability and Justification.
 \end{enumerate}
 
-Each is described below.
-
 \subsection{Text Preparation}
 
-Before analysis, the legislative proposal undergoes standardized preprocessing to ensure that the AI model receives input in a structured and interpretable form.
+Before analysis, the legislative proposal undergoes standardized preprocessing to ensure that the evaluator receives input in a structured and interpretable form.
 
 \subsubsection{Document Segmentation}
 
 Legislation is segmented into logical units, such as:
+
 \begin{itemize}
-    \item sections,
-    \item subsections,
+    \item sections and subsections,
     \item enumerated provisions,
     \item definitions,
     \item mandates,
@@ -607,166 +824,135 @@ Legislation is segmented into logical units, such as:
     \item appropriations.
 \end{itemize}
 
-This segmentation allows the model to analyze each component independently and in context.
+Segmentation allows for focused analysis of complex bills and supports cross-referencing within explanations.
 
 \subsubsection{Contextual Metadata}
 
 Where available, contextual information is included:
+
 \begin{itemize}
     \item policy domain (healthcare, tax policy, infrastructure, etc.),
-    \item jurisdiction,
+    \item jurisdiction and legislative session,
     \item sponsoring entity,
     \item historical or comparative precedents,
     \item relevant statutory references.
 \end{itemize}
 
-Metadata helps the model identify potential feasibility constraints or institutional conflicts.
+Metadata helps evaluators identify feasibility constraints, institutional conflicts, and relevant comparators.
 
 \subsubsection{Legislative Normalization}
 
-Formatting inconsistencies, redundant language, or irrelevant boilerplate are removed to reduce noise and improve clarity.
+Formatting inconsistencies, redundant boilerplate, and non-substantive artifacts (e.g., page headers, XML tags) are removed to reduce noise. The goal is to present the evaluator with a clean representation of the substantive legal content.
 
-\subsection{Dimension-Level Evaluation}
+\subsection{Dimension-Level Policy Evaluation}
 
-For each of the seven pillars of the PoliScore Framework, PoliScore applies a structured, domain-specific evaluation prompt. Each prompt is designed to assess a specific dimension using criteria derived directly from the theoretical foundations in Sections~\ref{sec:foundations} and \ref{sec:framework}.
+For each of the seven pillars of the PoliScore Framework, a structured evaluation prompt is applied. Each prompt is designed to assess a specific dimension using criteria derived directly from the theoretical foundations in Sections~\ref{sec:foundations} and \ref{sec:framework}.
 
-Each dimension evaluation includes three components.
+Each dimension evaluation includes:
 
-\subsubsection{Prompted Analysis}
-
-The model is asked a structured set of questions---tailored to that dimension---to elicit reasoning about:
 \begin{itemize}
-    \item causal mechanisms,
-    \item feasibility constraints,
-    \item economic impacts,
-    \item distributional patterns,
-    \item governance structures,
-    \item potential unintended consequences,
-    \item evidence or lack thereof.
+    \item \textbf{targeted questions} probing specific failure modes,
+    \item \textbf{rubric-aligned checklists} (e.g., for feasibility or governance risks),
+    \item \textbf{requests for explicit trade-off analysis} where relevant.
 \end{itemize}
 
-These questions are standardized to ensure consistency across evaluations.
+The evaluator produces:
 
-\subsubsection{Rubric-Guided Scoring}
-
-The model’s response is evaluated according to:
 \begin{itemize}
-    \item accuracy,
-    \item recognition of key issues,
-    \item reasoning quality,
-    \item internal consistency,
-    \item coverage of required criteria.
+    \item a short narrative assessment,
+    \item a 0--100 numeric score for the dimension,
+    \item optional flags indicating unusual uncertainty or potential contradictions with other dimensions.
 \end{itemize}
 
-Each dimension is scored on a 0--100 scale.
+Cross-pillar consistency checks (e.g., between feasibility, economic sustainability, and systemic risk) are applied to detect internal conflicts.
 
-\subsubsection{Cross-Checks and Internal Consistency Tests}
+\subsection{Sectoral and Overall Impact Scoring}
 
-PoliScore performs additional diagnostics, such as:
+Dimension-level evaluations are conceptually upstream of sectoral scoring: understanding problem clarity, evidence base, and unintended consequences informs a more realistic estimate of sector-level impacts.
+
+The sectoral scoring step uses the Stats template and sectoral set \(\mathcal{S}\) described in Section~\ref{subsec:sectoral}. The evaluator:
+
+\begin{enumerate}
+    \item identifies which sectors are meaningfully affected by the bill,
+    \item assigns scores \(I_{b,s} \in [-100, 100]\) or N/A for each sector,
+    \item produces an initial overall impact score \(I_b^{\ast}\),
+    \item explains major positive and negative contributions with references to specific provisions.
+\end{enumerate}
+
+An aggregation function \(f\) is then applied as a cross-check or as a primary method if direct overall scoring is not used. Discrepancies between direct and derived overall scores may trigger:
+
 \begin{itemize}
-    \item asking alternative formulations of the same question,
-    \item checking for contradictions across dimension outputs,
-    \item verifying that feasibility, economic impacts, and unintended consequences align with one another.
+    \item automatic confidence reduction,
+    \item a request for reevaluation,
+    \item human review for high-stakes bills.
 \end{itemize}
 
-Internal contradictions reduce the dimension score.
+\subsection{Legislator Aggregation and Grading}
 
-\subsection{Scoring and Aggregation}
+Once bill-level overall impact scores \(I_b^{\ast}\) are computed, legislator performance can be evaluated using the interaction model defined in Section~\ref{sec:pipeline}. The steps are:
 
-Once all seven dimensions have been evaluated and scored, PoliScore aggregates the results into:
+\begin{enumerate}
+    \item Construct the set of legislator--bill interactions from roll-call data and bill metadata (sponsorship and co-sponsorship).
+    \item Apply the weighting scheme \(w_T\) to each interaction type \(T\).
+    \item For each legislator \(\ell\), compute the raw score \(S_{\ell}\) as a normalized weighted sum of \(I_b^{\ast}\).
+    \item Map \(S_{\ell}\) to a letter grade via the standard threshold function.
+    \item Generate sectoral breakdowns of the legislator's performance (e.g., average impact in healthcare vs.\ energy).
+    \item Feed these statistics into the parameterized summary prompt to produce a narrative overview.
+\end{enumerate}
+
+Because all steps are explicit and documented, users can:
+
 \begin{itemize}
-    \item dimension-level scores (0--100),
-    \item a composite policy quality score (also 0--100).
+    \item inspect which bills contributed most to a legislator's score,
+    \item understand how interaction types were weighted,
+    \item recompute scores under alternative weighting schemes if desired.
 \end{itemize}
-
-\subsubsection{Weighting Scheme}
-
-By default, all dimensions are equally weighted, reflecting their equal importance in determining overall policy quality. However, the weighting system is configurable to support:
-\begin{itemize}
-    \item domain-specific weighting (e.g., feasibility may be weighted more highly for emergency-response legislation),
-    \item researcher-defined weighting,
-    \item sensitivity analysis.
-\end{itemize}
-
-\subsubsection{Composite Score Interpretation}
-
-The composite PoliScore is not a moral or ideological rating. It represents a structural assessment of:
-\begin{itemize}
-    \item internal coherence,
-    \item feasibility,
-    \item fairness,
-    \item evidence alignment,
-    \item economic sustainability,
-    \item governance soundness,
-    \item systemic risk profile.
-\end{itemize}
-
-Scores may be interpreted as follows:
-\begin{align*}
-    80\text{--}100 &: \text{Strongly constructed policy with minor weaknesses},\\
-    60\text{--}79  &: \text{Moderately sound policy with identifiable risks or gaps},\\
-    40\text{--}59  &: \text{Weak policy likely to face implementation or outcome challenges},\\
-    <40            &: \text{Structurally unsound policy with serious risks or flaws}.
-\end{align*}
-
-These ranges are descriptive, not prescriptive.
 
 \subsection{Interpretability and Justification}
 
-PoliScore emphasizes transparency and interpretability to ensure users understand why a policy received its score.
+PoliScore emphasizes transparency and interpretability to ensure users understand \emph{why} a policy or legislator received a given score.
 
-\subsubsection{Dimension Summaries}
+\subsubsection{Bill-Level Explanations}
 
-For each pillar, PoliScore generates:
+For each bill, PoliScore produces:
+
 \begin{itemize}
-    \item a concise explanation of strengths,
-    \item a list of identified weaknesses,
-    \item references to specific legislative sections,
-    \item a justification for the assigned score.
+    \item a short report summarizing goals and expected impacts,
+    \item a longer, lay-accessible report referencing concrete sections,
+    \item a per-dimension breakdown of strengths and weaknesses,
+    \item a justification for each sectoral and overall impact score.
 \end{itemize}
 
-\subsubsection{Cross-Dimension Insights}
+\subsubsection{Legislator-Level Explanations}
 
-PoliScore highlights interactions across dimensions, such as:
+For each legislator, PoliScore provides:
+
 \begin{itemize}
-    \item economic impacts that undermine feasibility,
-    \item governance risks that create unintended consequences,
-    \item distributional effects that contradict the stated purpose of the bill.
+    \item the overall impact score and letter grade,
+    \item sectoral performance statistics,
+    \item a list of most influential positive and negative bill interactions,
+    \item a three-paragraph narrative summary generated from the parameterized prompt.
 \end{itemize}
 
-This supports holistic understanding.
+These outputs are intended to empower voters to ask informed questions, not to dictate specific political conclusions.
 
-\subsubsection{Explanation Consistency Checks}
+\subsubsection{Consistency and Robustness Checks}
 
-To improve trustworthiness, PoliScore includes:
+To improve trustworthiness, PoliScore incorporates:
+
 \begin{itemize}
-    \item redundancy tests (asking the model to justify scores multiple ways),
-    \item adversarial prompts,
-    \item contradiction detection.
+    \item redundant prompts phrased in different ways to test stability,
+    \item spot checks of bill and legislator scores under minor variations,
+    \item adversarial tasks drawn from PoliBench,
+    \item manual review and correction for anomalous outputs.
 \end{itemize}
-
-Inconsistent or unreliable explanations are flagged.
-
-\subsection{Alignment With PoliBench}
-
-PoliScore’s scoring process is tightly coupled to the PoliBench benchmark suite. Models deployed within the PoliScore pipeline are required to demonstrate proficiency on PoliBench prior to being used for real-world legislative evaluation. This ensures:
-\begin{itemize}
-    \item baseline competence,
-    \item reproducible reasoning quality,
-    \item calibrated performance across dimensions,
-    \item transparency about limitations.
-\end{itemize}
-
-PoliBench acts as both a qualifying exam and a diagnostic tool for improving the underlying model.
 
 \subsection*{Summary}
 
-The PoliScore methodology provides a rigorous, structured, and interpretable approach to evaluating policy quality. By combining legislative segmentation, dimension-specific evaluation, rubric-based scoring, and cross-dimension analysis, PoliScore offers a transparent and reproducible system for assessing the strengths and weaknesses of proposed legislation.
-
-This section outlines the formal scoring process; Section~\ref{sec:comparison} examines how this process compares to the approaches used by existing institutions such as the CBO, think tanks, and international policy organizations.
+The PoliScore methodology provides a rigorous, structured, and interpretable approach to evaluating both policy quality and legislative performance. By combining legislative segmentation, dimension-specific evaluation, sectoral and overall impact scoring, and explicit aggregation rules, PoliScore offers a transparent and reproducible system for assessing the strengths and weaknesses of both bills and the legislators who interact with them.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 5   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 5: COMPARISON   %%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Comparison to Existing Institutions}
@@ -774,35 +960,38 @@ This section outlines the formal scoring process; Section~\ref{sec:comparison} e
 
 Public policy evaluation is not a new endeavor. Governments, academic centers, think tanks, and international organizations have long attempted to analyze the consequences of legislation. However, their approaches are fragmented, domain-specific, and often limited to economic forecasting, post-hoc program evaluation, or ideologically motivated analysis.
 
-This section compares PoliScore to the institutions most commonly involved in policy assessment, and clarifies how the framework complements existing tools while filling an unmet need in pre-implementation policy quality evaluation.
+This section compares PoliScore to institutions most commonly involved in policy assessment, clarifying how the framework complements existing tools while filling an unmet need in pre-implementation policy quality evaluation and systematic legislator performance grading.
 
 \subsection{Congressional Budget Office (CBO)}
 
 The Congressional Budget Office provides cost estimates and economic projections for federal legislation. Its analyses are widely respected and intentionally nonpartisan. However, by statutory mandate, the CBO:
+
 \begin{itemize}
     \item does not evaluate whether a policy is fair, feasible, or well-designed;
     \item does not assess governance risks or institutional fragility;
     \item does not analyze unintended consequences outside fiscal or macroeconomic domains;
     \item does not provide judgments about whether a policy is ``good'' or ``poor'';
-    \item focuses almost exclusively on budgetary impacts, not policy quality.
+    \item focuses almost exclusively on budgetary impacts, not policy quality or legislator performance.
 \end{itemize}
 
 \paragraph{How PoliScore differs.}
 
 PoliScore:
+
 \begin{itemize}
     \item evaluates seven dimensions of policy quality rather than a single economic dimension;
-    \item focuses on pre-implementation design soundness;
-    \item assesses governance structure, feasibility, fairness, and systemic risk, which CBO does not;
-    \item does not produce fiscal projections, but instead evaluates whether funding mechanisms are structurally coherent.
+    \item focuses on pre-implementation design soundness and sectoral societal impacts;
+    \item assesses governance structure, feasibility, fairness, and systemic risk;
+    \item aggregates bill impacts into legislator performance scores using transparent rules.
 \end{itemize}
 
 CBO answers: \textit{``What will this cost?''}\\
-PoliScore answers: \textit{``Is this policy structurally sound, feasible, and beneficial?''}
+PoliScore answers: \textit{``Is this policy structurally sound and societally beneficial, and how does a legislator's record aggregate across such policies?''}
 
-\subsection{Think Tanks (Brookings, Heritage, AEI, CAP, Cato, etc.)}
+\subsection{Think Tanks}
 
-Think tanks play a major role in shaping public discourse about policy. They often produce:
+Think tanks (e.g., Brookings, Heritage, AEI, CAP, Cato) play a major role in shaping public discourse about policy. They often produce:
+
 \begin{itemize}
     \item whitepapers,
     \item policy briefs,
@@ -811,7 +1000,8 @@ Think tanks play a major role in shaping public discourse about policy. They oft
     \item commentary.
 \end{itemize}
 
-However, nearly all think tanks---no matter their orientation---produce work shaped by underlying ideological commitments or donor priorities. As a result:
+However, nearly all think tanks produce work shaped by underlying ideological commitments or donor priorities. As a result:
+
 \begin{itemize}
     \item evaluations differ radically across institutions;
     \item frameworks for analysis vary widely;
@@ -823,20 +1013,22 @@ However, nearly all think tanks---no matter their orientation---produce work sha
 \paragraph{How PoliScore differs.}
 
 PoliScore:
+
 \begin{itemize}
     \item does not advocate for policy positions;
-    \item uses a transparent, standardized framework;
-    \item applies the same evaluative criteria to all legislation;
+    \item uses a transparent, standardized framework and aggregation model;
+    \item applies the same evaluative criteria to all legislation and legislators;
     \item grounds analysis in political philosophy, institutional economics, and governance theory rather than ideology;
     \item produces structured, replicable outputs, not narrative persuasion.
 \end{itemize}
 
 Think tanks answer: \textit{``Is this policy aligned with our values or goals?''}\\
-PoliScore answers: \textit{``Is this policy well-designed according to universal structural criteria?''}
+PoliScore answers: \textit{``How structurally sound is this policy, and what is the aggregate impact of a legislator's actions?''}
 
 \subsection{Academic Public Policy and Political Science Programs}
 
 Academic programs teach:
+
 \begin{itemize}
     \item cost-benefit analysis,
     \item program evaluation,
@@ -846,90 +1038,57 @@ Academic programs teach:
 \end{itemize}
 
 However:
+
 \begin{itemize}
-    \item methods vary by institution and professor;
+    \item methods vary by institution and instructor;
     \item frameworks are conceptual, not standardized;
-    \item academics rarely evaluate policy before implementation;
-    \item analyses are usually qualitative, not rubric-based;
-    \item no unifying cross-disciplinary ``policy quality standard'' exists.
+    \item academics rarely evaluate policy before implementation at scale;
+    \item analyses are usually qualitative, not rubric-based and automated;
+    \item no unifying cross-disciplinary ``policy quality standard'' or legislator aggregation model exists.
 \end{itemize}
 
 \paragraph{How PoliScore differs.}
 
 PoliScore:
+
 \begin{itemize}
     \item operationalizes academic theory into a single coherent rubric;
     \item formalizes seven dimensions into measurable criteria;
-    \item evaluates policy pre-implementation, not only after programs fail or succeed;
-    \item integrates insights from economics, philosophy, governance, and systems engineering.
+    \item evaluates policy pre-implementation and at scale;
+    \item integrates insights from economics, philosophy, governance, and systems engineering into a concrete scoring pipeline.
 \end{itemize}
 
-Academia answers: \textit{``How should we think about policy?''}\\
-PoliScore answers: \textit{``How well-constructed is this specific policy?''}
+Academia answers: \textit{``How should we think about policy and governance?''}\\
+PoliScore answers: \textit{``How well-constructed is this specific policy, and what does a legislator's record look like when evaluated under those standards?''}
 
-\subsection{International Organizations (OECD, UNDP, WHO, World Bank)}
+\subsection{International Organizations and Independent Models}
 
-These institutions evaluate:
+International organizations and independent economic modeling groups evaluate:
+
 \begin{itemize}
     \item development programs,
     \item governance indicators,
     \item effectiveness of existing policies,
-    \item public health interventions,
-    \item economic outcomes.
+    \item macroeconomic consequences.
 \end{itemize}
 
-Their analyses are valuable but limited in scope. They mostly:
+Their analyses are valuable but limited in scope. They mainly:
+
 \begin{itemize}
     \item evaluate implemented programs, not proposed legislation;
     \item rely on national data and long-term outcomes;
-    \item focus on specific domains (health, governance, development);
-    \item use retrospective evaluation rather than predictive structural analysis.
+    \item focus on specific domains;
+    \item analyze macro-level indicators rather than the structure of individual bills or the cumulative record of individual legislators.
 \end{itemize}
 
-\paragraph{How PoliScore differs.}
+PoliScore complements these efforts by:
 
-PoliScore:
 \begin{itemize}
-    \item evaluates legislation prospectively, before implementation;
-    \item operates at the level of bill text, not national indicators;
-    \item applies the same framework across all policy domains;
-    \item focuses on structural soundness, not outcome measurement.
+    \item evaluating legislation prospectively, before implementation;
+    \item operating at the level of bill text and individual legislators;
+    \item providing a cross-domain framework that can be applied uniformly;
+    \item focusing on structural design quality and predicted societal impact rather than only observed outcomes.
 \end{itemize}
-
-International organizations answer: \textit{``Did this policy improve development outcomes?''}\\
-PoliScore answers: \textit{``Is this policy likely to produce good outcomes?''}
-
-\subsection{Independent Economic Forecasting Models (Moody’s, Penn Wharton Budget Model)}
-
-These models simulate macroeconomic consequences of policy proposals. They are sophisticated and data-intensive, but inherently narrow. They assess:
-\begin{itemize}
-    \item GDP impact,
-    \item employment effects,
-    \item revenue outcomes,
-    \item inflation or growth metrics.
-\end{itemize}
-
-They do not assess:
-\begin{itemize}
-    \item governance risks,
-    \item causal coherence,
-    \item feasibility,
-    \item distributional ethics,
-    \item unintended consequences,
-    \item structural soundness.
-\end{itemize}
-
-\paragraph{How PoliScore differs.}
-
-PoliScore:
-\begin{itemize}
-    \item does not simulate macroeconomic variables;
-    \item evaluates the design quality of the policy itself;
-    \item includes governance, feasibility, and fairness---domains outside macro modeling.
-\end{itemize}
-
-Economic forecasters answer: \textit{``What economic effects might this policy have?''}\\
-PoliScore answers: \textit{``Is this policy well-constructed across all relevant dimensions?''}
 
 \subsection{Summary of Differences}
 
@@ -946,63 +1105,44 @@ Table~\ref{tab:institutions} summarizes the relationships between existing insti
         \midrule
         CBO &
         Budgetary/fiscal impacts &
-        Governance, feasibility, fairness, systemic risk &
-        Provides a holistic, pre-implementation structural evaluation. \\
+        Governance, feasibility, fairness, systemic risk, individual records &
+        Provides holistic pre-implementation structural and impact evaluation, plus legislator aggregation. \\
         \midrule
         Think Tanks &
         Ideology-driven arguments &
         Standardized, nonpartisan evaluation &
-        Supplies neutral, structured scoring across seven dimensions. \\
+        Supplies neutral, structured scoring across seven dimensions and a transparent bill-to-legislator model. \\
         \midrule
         Academia &
         Theory, ethics, evaluation methods &
-        Unified applied rubric, operational scoring &
-        Operationalizes academic theory into a consistent framework. \\
+        Unified applied rubric, automated scoring, legislator grades &
+        Operationalizes theory into a consistent, scalable framework. \\
         \midrule
-        International Orgs &
-        Retrospective outcomes &
-        Pre-implementation analysis &
-        Evaluates proposals before they are enacted. \\
-        \midrule
-        Economic Models &
-        Macro projections &
-        Design quality, governance, distributional reasoning &
-        Complements economic forecasts with structural analysis. \\
+        International Orgs \& Macro Models &
+        Retrospective outcomes; macro projections &
+        Pre-implementation structural analysis of bills; individual legislator histories &
+        Evaluates proposals before enactment and aggregates impacts to individual legislators. \\
         \bottomrule
     \end{tabular}
     \caption{Comparison of existing institutions and PoliScore.}
     \label{tab:institutions}
 \end{table}
 
-\subsection{Positioning}
-
-PoliScore does not replace existing institutions. It fills the missing analytical layer that sits between:
-\begin{itemize}
-    \item academic theory,
-    \item economic forecasting,
-    \item practical governance,
-    \item AI reasoning,
-    \item public understanding.
-\end{itemize}
-
-By providing a unified, domain-agnostic framework for evaluating policy quality, PoliScore enables more structured public discourse, supports researchers, and creates new opportunities for interdisciplinary collaboration.
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 6   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 6: LIMITATIONS   %%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Limitations, Risks, and Ethical Considerations}
 \label{sec:limitations}
 
-While PoliScore and the PoliBench Benchmark Suite provide a structured and theoretically grounded framework for evaluating public policy, they also introduce methodological, computational, and ethical challenges. Recognizing these limitations is essential for responsible use and for ensuring that PoliScore complements, rather than replaces, democratic decision-making and expert judgment.
-
-This section outlines the primary limitations of the framework, the risks associated with AI-assisted policy evaluation, and the ethical considerations necessary for its responsible deployment.
+While PoliScore and the PoliBench Benchmark Suite provide a structured and theoretically grounded framework for evaluating public policy and legislative performance, they also introduce methodological, computational, and ethical challenges. Recognizing these limitations is essential for responsible use and for ensuring that PoliScore complements, rather than replaces, democratic decision-making and expert judgment.
 
 \subsection{Limitations of the Framework}
 
 \subsubsection{Incomplete Representations of Policy Context}
 
 Legislative text does not always contain:
+
 \begin{itemize}
     \item administrative history,
     \item political constraints,
@@ -1012,11 +1152,12 @@ Legislative text does not always contain:
     \item implementation environment.
 \end{itemize}
 
-PoliScore evaluates text as written, not the political or institutional context surrounding it. Real-world outcomes may differ from what the text alone suggests.
+PoliScore evaluates text as written and explicit interaction data, not the full political or institutional context. Real-world outcomes may differ from what the text and modeled impacts suggest.
 
 \subsubsection{Dependence on Model Interpretation}
 
-PoliScore relies on the reasoning ability of large language models. While PoliBench validates baseline competence, no model is infallible. AI systems may:
+PoliScore currently relies on large language models for bill-level evaluation. While PoliBench validates baseline competence, no model is infallible. AI systems may:
+
 \begin{itemize}
     \item misinterpret ambiguous sections,
     \item overlook subtle governance issues,
@@ -1025,530 +1166,237 @@ PoliScore relies on the reasoning ability of large language models. While PoliBe
     \item exhibit sensitivity to prompt phrasing.
 \end{itemize}
 
-Human oversight remains essential.
+Human oversight remains essential, particularly for high-impact legislation.
 
-\subsubsection{Normative Judgments Embedded in Pillar Definitions}
+\subsubsection{Normative Judgments in Pillars and Aggregation}
 
-Although the seven dimensions are derived from widely accepted principles, any evaluative framework contains implicit assumptions. For example:
+Although the seven dimensions and aggregation rules are derived from widely accepted principles, any evaluative framework contains implicit assumptions. For example:
+
 \begin{itemize}
-    \item principles of ``fairness'' rely on philosophical traditions;
+    \item principles of ``fairness'' rely on particular philosophical traditions;
     \item feasibility depends on assumptions about institutional capacity;
-    \item systemic risk depends on the evaluator’s interpretation of fragility.
+    \item sector weights and interaction weights embody normative views about what matters most.
 \end{itemize}
 
-PoliScore mitigates this by grounding dimensions in well-established academic literature, but the framework is not value-free.
+PoliScore mitigates this by making all assumptions explicit and configurable, but it is not value-free.
 
 \subsubsection{Challenges in Quantifying Qualitative Constructs}
 
-Some aspects of policy quality---such as institutional trust, political legitimacy, or cultural acceptance---are inherently difficult to quantify. PoliScore focuses on the structural quality of the policy text, but certain societal outcomes are fundamentally complex and unpredictable.
+Some aspects of policy quality---such as institutional trust, political legitimacy, or cultural acceptance---are inherently difficult to quantify. PoliScore focuses on the structural and impact dimensions that can be reasoned about from text and well-specified criteria, but cannot capture all nuances of real-world politics.
 
 \subsubsection{Early-Stage Field}
 
 Policy quality engineering is a new field. As such:
+
 \begin{itemize}
-    \item the framework will evolve;
-    \item dimensions may be refined;
-    \item additional pillars may emerge;
-    \item new benchmarks may be required as AI systems improve.
+    \item the framework will evolve,
+    \item new dimensions or sub-dimensions may be added,
+    \item weighting schemes may be refined,
+    \item benchmark tasks will need continuous updates.
 \end{itemize}
 
-The methodology is intentionally designed to be iterative.
+Versioning and transparent changelogs are therefore essential.
 
-\subsection{Risks Associated With AI-Assisted Policy Evaluation}
+\subsection{Risks Associated With AI-Assisted Policy and Legislator Evaluation}
 
 \subsubsection{Overreliance on AI Outputs}
 
 AI-generated evaluations, if misunderstood as authoritative, may:
+
 \begin{itemize}
     \item overshadow legitimate political debate;
-    \item reduce the role of experts;
+    \item reduce the perceived role of experts and stakeholders;
     \item disincentivize democratic deliberation;
-    \item be mistaken for objective truth.
+    \item be mistaken for objective truth rather than structured analysis.
 \end{itemize}
 
-PoliScore is a tool for structured analysis, not a substitute for policymaking.
+PoliScore is designed as an analytical tool, not a source of political mandates.
 
 \subsubsection{Risk of Misuse or Politicization}
 
 Any scoring system can be misused or selectively weaponized. Risks include:
+
 \begin{itemize}
     \item cherry-picking PoliScore results to support partisan narratives;
     \item misrepresenting composite scores without context;
-    \item selectively highlighting favorable dimensions;
-    \item using scores to target political opponents.
+    \item selectively highlighting favorable dimensions or interactions;
+    \item using grades to target political opponents without acknowledging framework assumptions.
 \end{itemize}
 
-Mitigation requires transparency and publication of dimension-level details, not just composite numbers.
+Mitigation requires full publication of methods, dimension-level breakdowns, and underlying bill-level scores.
 
-\subsubsection{Model Bias and Blind Spots}
+\subsubsection{Model Bias and Training Data Influence}
 
 Even when the framework is neutral, AI models may incorporate biases from:
+
 \begin{itemize}
-    \item training data,
-    \item institutional assumptions,
-    \item cultural norms,
-    \item market incentives,
-    \item political rhetoric embedded in public discourse.
+    \item training data composition,
+    \item institutional assumptions embedded in public discourse,
+    \item coverage biases in scientific literature or media.
 \end{itemize}
 
-PoliBench mitigates this by testing for reasoning quality rather than surface-level pattern matching, but model bias cannot be fully eliminated.
+PoliScore's focus on ``Overall Impact to Society'' and evidence-based reasoning pushes models toward mainstream scientific and public consensus on many topics, but this may not align with all ideological perspectives.
 
-\subsubsection{Vulnerability to Adversarial Prompts}
+\subsubsection{Vulnerability to Adversarial Design}
 
 Sophisticated actors could attempt to influence model outputs by:
+
 \begin{itemize}
-    \item strategically crafting bill text;
-    \item embedding misleading language;
-    \item exploiting LLM weaknesses;
-    \item introducing ambiguous provisions.
+    \item strategically crafting bill text to appear more beneficial under known evaluation criteria;
+    \item embedding misleading language that exploits LLM weaknesses;
+    \item gaming sector-specific scoring patterns.
 \end{itemize}
 
-Human review remains essential when evaluating high-stakes legislation.
+Ongoing research, adversarial testing, and human review are required to identify and mitigate such strategies.
 
 \subsection{Ethical Considerations}
 
 \subsubsection{Transparency and Explainability}
 
 Users must understand:
+
 \begin{itemize}
-    \item how PoliScore generates evaluations;
-    \item what each dimension score means;
-    \item how the model reached its conclusions.
+    \item how PoliScore generates evaluations,
+    \item what each dimension and sector score means,
+    \item how the aggregation into legislator grades is performed.
 \end{itemize}
 
-PoliScore includes explanation requirements and cross-checks, but continued emphasis on transparency is critical.
+PoliScore therefore emphasizes:
+
+\begin{itemize}
+    \item open access to scoring rules and prompts,
+    \item clear documentation of pipeline steps,
+    \item availability of the underlying bill-level and interaction-level data used for aggregation.
+\end{itemize}
 
 \subsubsection{Human Oversight and Democratic Authority}
 
 AI models and algorithmic scoring frameworks must not:
+
 \begin{itemize}
     \item replace elected representatives;
-    \item undermine democratic decision-making;
-    \item give undue authority to computational outputs.
+    \item override democratic decision-making;
+    \item be treated as infallible arbiters of political truth.
 \end{itemize}
 
-PoliScore supports human deliberation; it does not supplant it.
-
-\subsubsection{Domain-Specific Sensitivity}
-
-Policies differ dramatically by sector (healthcare, taxation, environment, etc.). Ethical use of PoliScore requires:
-\begin{itemize}
-    \item awareness of domain-specific complexities;
-    \item consultation with subject matter experts;
-    \item recognition that some impacts exceed textual analysis.
-\end{itemize}
-
-AI should augment domain experts, not replace them.
+PoliScore is intended to help voters, researchers, and policymakers reason more clearly about policy and legislative performance, not to dictate outcomes.
 
 \subsubsection{Inclusivity in Framework Development}
 
 As PoliScore evolves, its legitimacy depends on:
+
 \begin{itemize}
-    \item peer review;
-    \item collaboration with academics;
-    \item multidisciplinary input;
-    \item feedback from policymakers, economists, legal scholars, and civic groups.
+    \item peer review,
+    \item collaboration with academics and practitioners,
+    \item multidisciplinary input from economics, law, public health, and other domains,
+    \item feedback from civic organizations and the broader public.
 \end{itemize}
 
-An inclusive development process ensures that the framework does not reflect narrow assumptions or blind spots.
-
-\subsection{Mitigation Strategies}
-
-PoliScore incorporates several safeguards:
-\begin{itemize}
-    \item PoliBench validation to ensure baseline reasoning quality;
-    \item dimension-level transparency rather than opaque composite scores;
-    \item cross-model comparison to detect inconsistencies;
-    \item robust documentation for researchers;
-    \item manual review options for analysts;
-    \item versioning and changelogs to avoid unnoticed drift;
-    \item public access to methodology to support scrutiny.
-\end{itemize}
-
-These mechanisms collectively reduce the risks associated with AI-assisted policy evaluation.
+An inclusive development process helps reduce blind spots and increases trust.
 
 \subsection*{Summary}
 
-PoliScore introduces a rigorous, first-principles approach to evaluating policy quality, but it is not a substitute for human judgment or democratic deliberation. Recognizing its limitations and potential risks is essential to its responsible use. By emphasizing transparency, interpretability, cross-checking, and academic grounding, PoliScore aims to serve as a constructive analytical tool rather than an authoritative arbiter of policy outcomes.
-
-The next section, Section~\ref{sec:web}, outlines the integration of web search into PoliScore, the associated complexities, and the safeguards necessary for responsible use.
+PoliScore introduces a rigorous, first-principles approach to evaluating policy quality and legislative performance, but it is not a substitute for human judgment or democratic deliberation. Recognizing its limitations and potential risks is essential to its responsible use. By emphasizing transparency, interpretability, cross-checking, and academic grounding, PoliScore aims to serve as a constructive analytical tool rather than an authoritative arbiter of political outcomes.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 7   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 7: WEB SEARCH   %%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Integrating Web Search: Benefits, Complexities, and Concerns}
 \label{sec:web}
 
-As AI systems become increasingly capable of retrieving and synthesizing information from the web, responsible integration of external data into policy evaluation becomes both an opportunity and a challenge. Web search can significantly strengthen PoliScore’s analytical depth, but it also introduces complexities related to reliability, bias, reproducibility, and governance. This section outlines the potential advantages of incorporating web search into the PoliScore methodology, along with the limitations and safeguards required to ensure responsible use.
+As AI systems become increasingly capable of retrieving and synthesizing information from the web, responsible integration of external data into policy evaluation becomes both an opportunity and a challenge. Web search can significantly strengthen PoliScore's analytical depth, especially for feasibility and evidence-based assessment, but it also introduces complexities related to reliability, bias, reproducibility, and governance.
+
+The considerations outlined in this section largely mirror those that apply to AI-assisted analysis in general, but with additional emphasis on preserving the non-partisan and reproducible nature of PoliScore.
 
 \subsection{Benefits of Web Search Integration}
 
-Web search provides access to real-world information that extends beyond the content of legislative text. When properly constrained, it can enhance accuracy and reduce reliance on incomplete model memory.
+Web search provides access to real-world information that extends beyond the content of legislative text. When properly constrained, it can:
 
-\subsubsection{Access to Empirical Data}
-
-Many policy domains require up-to-date or domain-specific statistics, such as:
 \begin{itemize}
-    \item workforce availability,
-    \item infrastructure capacity,
-    \item budget baselines,
-    \item agency staffing levels,
-    \item historical program enrollment,
-    \item economic indicators.
+    \item supply up-to-date empirical data (e.g., workforce statistics, infrastructure capacity),
+    \item clarify agency structures and institutional mandates,
+    \item retrieve historical examples of similar policies,
+    \item contextualize budget numbers and program scales.
 \end{itemize}
 
-These data points improve the quality of evaluations in:
+These capabilities directly support:
+
 \begin{itemize}
-    \item Pillar 2: Evidence Base \& Empirical Support,
-    \item Pillar 3: Implementation Feasibility,
-    \item Pillar 4: Economic Sustainability.
+    \item Pillar 2 (Evidence Base \& Empirical Support),
+    \item Pillar 3 (Implementation Feasibility),
+    \item Pillar 4 (Economic Efficiency \& Fiscal Sustainability),
+    \item Pillar 6 (Governance Integrity \& Institutional Risk).
 \end{itemize}
 
-\subsubsection{Contextualizing Institutional Constraints}
+Web search also helps reduce hallucination by anchoring model outputs in verifiable sources.
 
-Web search can help identify:
+\subsection{Complexities and Risks}
+
+However, integrating web search raises several challenges:
+
 \begin{itemize}
-    \item which agencies currently exist,
-    \item what authority they have,
-    \item notable oversight issues,
-    \item past performance of similar programs,
-    \item known bottlenecks in the administrative apparatus.
+    \item \textbf{Non-reproducibility.} Search results change over time and may vary by geography or search engine configuration.
+    \item \textbf{Source quality.} The web contains a mix of official data, academic work, advocacy, and misinformation.
+    \item \textbf{Ranking bias.} Search engine algorithms may implicitly prioritize certain narratives or domains.
+    \item \textbf{Domain imbalance.} Some policy areas are richly documented, others are sparse.
 \end{itemize}
 
-This supports:
+Without strict guardrails, web search could erode the non-partisan foundation of PoliScore and undermine trust.
+
+\subsection{Safeguards and Design Principles}
+
+To mitigate these risks, any web-integrated variant of PoliScore should:
+
 \begin{itemize}
-    \item Pillar 6: Governance Integrity \& Institutional Risk.
+    \item restrict retrieval to vetted source categories (e.g., official government domains, major statistical agencies, peer-reviewed journals, reputable international organizations),
+    \item emphasize retrieval of \emph{facts} (e.g., numeric data, definitions) rather than opinion or advocacy,
+    \item cache retrieved documents and associate them with timestamps and citations for reproducibility,
+    \item expose retrieved sources in public reports so that users can independently evaluate them,
+    \item flag evaluations that rely heavily on sparse or low-confidence external data.
 \end{itemize}
 
-\subsubsection{Reducing Hallucination}
-
-LLMs may hallucinate historical facts, legal structures, or administrative capacities when relying solely on internal training data. Web search:
-\begin{itemize}
-    \item anchors evaluations in verifiable sources;
-    \item reduces fabricated claims;
-    \item improves factual grounding.
-\end{itemize}
-
-\subsubsection{Enabling Policy Comparison}
-
-Web search allows the system to:
-\begin{itemize}
-    \item retrieve prior legislation;
-    \item compare cross-jurisdictional approaches;
-    \item identify relevant case studies;
-    \item verify whether similar policies have worked elsewhere.
-\end{itemize}
-
-This strengthens the evaluative process across multiple pillars.
-
-\subsection{Complexities and Technical Challenges}
-
-While web search offers clear benefits, its integration introduces several methodological and computational challenges.
-
-\subsubsection{Variability and Non-Reproducibility}
-
-The web changes continuously. Search results:
-\begin{itemize}
-    \item vary by time;
-    \item vary by location;
-    \item may vary by query phrasing;
-    \item may be influenced by search engine ranking algorithms.
-\end{itemize}
-
-This complicates reproducibility, a core requirement of scientific and academic evaluation frameworks.
-
-\subsubsection{Source Quality and Reliability}
-
-The open web contains:
-\begin{itemize}
-    \item official data,
-    \item academic research,
-    \item advocacy reports,
-    \item news articles,
-    \item opinion pieces,
-    \item misinformation,
-    \item SEO-driven content.
-\end{itemize}
-
-Without strict filtering, AI may incorporate unreliable or biased information.
-
-\subsubsection{Fragmentation Across Policy Domains}
-
-Some domains (e.g., healthcare, taxation) have rich accessible data; others (e.g., cybersecurity, tribal governance, emerging technologies) may have sparse or inconsistent information. This asymmetry may lead to uneven evaluation quality across policy types.
-
-\subsubsection{Query Construction Ambiguity}
-
-Natural-language queries issued by an AI system may:
-\begin{itemize}
-    \item be too broad or too narrow;
-    \item return irrelevant content;
-    \item introduce accidental bias;
-    \item misinterpret data without proper grounding.
-\end{itemize}
-
-Careful prompt engineering and query constraints are required.
-
-\subsubsection{Latency and Performance}
-
-Real-time web search significantly increases:
-\begin{itemize}
-    \item computational overhead,
-    \item inference latency,
-    \item system cost,
-    \item user wait times.
-\end{itemize}
-
-This affects scalability for high-volume analysis.
-
-\subsection{Concerns and Risks of Web-Integrated Policy Evaluation}
-
-\subsubsection{Bias Injection Through Search Engine Dynamics}
-
-Search engines prioritize:
-\begin{itemize}
-    \item high-traffic sites,
-    \item media outlets,
-    \item pages optimized for engagement,
-    \item politically charged topics.
-\end{itemize}
-
-This ranking dynamic may introduce hidden biases into the evaluation process, even if no partisan intent exists.
-
-\subsubsection{Political and Ideological Contamination}
-
-If search results include:
-\begin{itemize}
-    \item think tank content,
-    \item political commentary,
-    \item advocacy messaging,
-    \item editorial interpretations,
-\end{itemize}
-then model outputs may inherit the ideological predispositions of the sources.
-
-\subsubsection{Stability Over Time}
-
-As search engine algorithms evolve:
-\begin{itemize}
-    \item rankings shift;
-    \item domain authority changes;
-    \item new narratives become dominant;
-    \item old content is deprecated.
-\end{itemize}
-
-Evaluations may drift over time in ways unrelated to policy quality.
-
-\subsubsection{Difficulty Maintaining Neutrality}
-
-Without strict guardrails, web search could erode the non-partisan foundation of the PoliScore framework and undermine trust.
-
-\subsection{Safeguards and Responsible Integration Strategies}
-
-To mitigate risks, any web search integration should follow structured constraints.
-
-\subsubsection{Limited Source Categories}
-
-Restrict searches to:
-\begin{itemize}
-    \item official government websites;
-    \item academic institutions;
-    \item nonpartisan statistical agencies;
-    \item recognized international organizations;
-    \item peer-reviewed research.
-\end{itemize}
-
-Exclude:
-\begin{itemize}
-    \item opinion pieces,
-    \item advocacy groups,
-    \item partisan outlets,
-    \item editorial content,
-    \item think tank position papers.
-\end{itemize}
-
-\subsubsection{Evidence-Type Filtering}
-
-Search should retrieve facts, not interpretations:
-\begin{itemize}
-    \item numeric data,
-    \item historical precedents,
-    \item legal definitions,
-    \item administrative roles,
-    \item technical specifications.
-\end{itemize}
-
-\subsubsection{Cached Snapshots for Reproducibility}
-
-To reduce time-based variability:
-\begin{itemize}
-    \item store retrieved documents;
-    \item version control search results;
-    \item allow external auditing;
-    \item include citations and timestamps.
-\end{itemize}
-
-\subsubsection{Transparency in Usage}
-
-Reports should explicitly state:
-\begin{itemize}
-    \item whether web search was used;
-    \item which sources were cited;
-    \item what data influenced the score;
-    \item confidence levels based on evidence availability.
-\end{itemize}
-
-\subsubsection{Human Oversight}
-
-Analysts and researchers should review flagged sections or cases where:
-\begin{itemize}
-    \item search results contradict model expectations;
-    \item data is sparse or ambiguous;
-    \item governance risks are inferred from historical controversies.
-\end{itemize}
-
-AI augments human insight; it does not replace it.
-
-\subsection{Role of Web Search in the Future of Policy Quality Engineering}
-
-Web search can play a powerful but constrained role in strengthening policy evaluation frameworks. As AI models improve in retrieval accuracy and source discrimination, PoliScore may move toward:
-\begin{itemize}
-    \item more robust evidence gathering,
-    \item dynamic institutional context modeling,
-    \item sophisticated counterfactual analysis,
-    \item cross-jurisdictional comparisons.
-\end{itemize}
-
-However, maintaining neutrality and reproducibility will require:
-\begin{itemize}
-    \item rigorous source control,
-    \item clear methodological boundaries,
-    \item transparent documentation,
-    \item continuous monitoring for bias,
-    \item strong collaboration with academic experts.
-\end{itemize}
-
-Web search should enhance the quality of evaluation---not overshadow or distort the structural analysis at the core of the PoliScore framework.
-
-\subsection*{Summary}
-
-Integrating web search into policy evaluation offers substantial advantages, including improved factual grounding, stronger feasibility analysis, and reduced hallucination. However, it introduces complexities related to source quality, bias, reproducibility, and governance. A careful, constrained, and transparent integration strategy allows PoliScore to benefit from real-world evidence while preserving its non-partisan, first-principles foundation.
+PoliBench can be extended with retrieval-dependent tasks to test model behavior under these constraints.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   SECTION 8   %%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   SECTION 8: CONCLUSION   %%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Conclusion and Future Directions}
 \label{sec:conclusion}
 
-Public policy shapes the foundational conditions under which individuals and societies live, work, and thrive. Yet until now, there has been no unified, non-partisan, and methodologically rigorous framework for evaluating the structural quality of legislation before it is enacted. PoliScore addresses this gap by offering a principled, interdisciplinary model grounded in human needs, political philosophy, institutional economics, governance theory, and systems thinking.
+Public policy and legislative performance together define a large part of the lived experience of citizens. Yet until now, there has been no unified, non-partisan, and methodologically rigorous framework for evaluating the structural quality of legislation and aggregating its expected impacts into clear, interpretable assessments of what legislators have actually done.
 
-By formalizing policy quality into seven core dimensions---problem clarity, evidence support, feasibility, economic sustainability, distributional impact, governance integrity, and systemic risk---PoliScore introduces a reproducible standard for assessing the internal soundness of proposed legislation. The accompanying PoliBench Benchmark Suite operationalizes these principles into concrete tasks that evaluate whether AI systems possess the reasoning skills necessary to perform this analysis reliably.
+PoliScore addresses this gap by:
 
-Together, PoliScore and PoliBench represent early steps in what may become a broader field: policy quality engineering---a discipline focused on the structural, empirical, and institutional soundness of public policy design.
-
-\subsection{Contributions of This Work}
-
-This whitepaper establishes:
 \begin{itemize}
-    \item a first-principles theory of policy quality grounded in universal human needs;
-    \item a formal, seven-pillar framework for evaluating legislation;
-    \item a benchmark suite (PoliBench) for measuring AI competence in policy reasoning;
-    \item a methodology for generating transparent, reproducible, interpretable policy evaluations;
-    \item a structured comparison to existing institutions and their limitations;
-    \item an analysis of risks, ethical considerations, and safeguards involved in AI-assisted evaluation;
-    \item a strategy for responsible integration of web search into the evaluation pipeline.
+    \item articulating a principled, interdisciplinary theory of policy quality grounded in human needs, political philosophy, institutional economics, governance theory, and systems thinking;
+    \item formalizing this theory into a seven-pillar evaluation framework and a sectoral impact model that yield an ``Overall Impact to Society'' score for each bill;
+    \item defining a transparent aggregation pipeline from bill-level impacts to legislator-level performance scores and letter grades;
+    \item providing parameterized natural-language summaries that help voters understand complex legislative histories;
+    \item introducing PoliBench, a benchmark suite for measuring AI competence in policy reasoning and ensuring a baseline level of evaluator reliability.
 \end{itemize}
 
-These contributions collectively create the foundation for a standardized, academically defensible approach to pre-implementation policy evaluation.
+Together, these components represent early steps in what may become a broader field: \textit{policy quality engineering}---a discipline focused on the structural, empirical, and institutional soundness of public policy design and on principled aggregation of those designs into measures of legislative performance.
 
-\subsection{Opportunities for Future Research and Development}
+\subsection{Opportunities for Future Work}
 
-PoliScore and PoliBench are early prototypes of a much larger ecosystem that could emerge around computational policy evaluation. Several areas offer immediate opportunities for expansion.
+Several avenues for future research and development are evident:
 
-\subsubsection{Empirical Validation and Case Studies}
-
-Applying PoliScore to:
 \begin{itemize}
-    \item historical legislation,
-    \item failed policies,
-    \item successful reforms,
-    \item cross-national comparisons
+    \item \textbf{Empirical validation.} Applying PoliScore retrospectively to historical legislation and comparing predictions to observed outcomes can help calibrate weights, refine dimensions, and validate predictive power.
+    \item \textbf{Collaboration with academia.} Partnerships with universities and research centers can stress-test the framework, refine benchmarks, and extend the theoretical foundations.
+    \item \textbf{Sector-specific extensions.} Domain-specific sub-frameworks (e.g., for healthcare, climate policy, tax reform) can be developed atop the core pillars.
+    \item \textbf{Richer retrieval and evidence systems.} Carefully constrained and documented use of web-based and curated data sources can strengthen evidence-based evaluation.
+    \item \textbf{Internationalization.} Adapting the framework for use in other jurisdictions, legal traditions, and languages can broaden its applicability.
+    \item \textbf{Civic integration.} Tools built on PoliScore could support voters, journalists, advocacy groups, and even legislators themselves in understanding and improving legislative performance.
 \end{itemize}
-will help validate the framework’s predictive accuracy and refine its criteria.
-
-\subsubsection{Collaboration with Academic Institutions}
-
-Partnerships with universities, policy schools, and research centers can:
-\begin{itemize}
-    \item stress-test the methodology;
-    \item provide access to subject matter experts;
-    \item ensure theoretical robustness;
-    \item support peer review;
-    \item enhance academic legitimacy.
-\end{itemize}
-
-\subsubsection{Expansion of PoliBench}
-
-Future versions of the benchmark may include:
-\begin{itemize}
-    \item domain-specific test suites (healthcare, taxation, climate policy, infrastructure);
-    \item multi-step reasoning tasks;
-    \item adversarial tests to detect bias or fragility;
-    \item multilingual evaluations for international policy contexts.
-\end{itemize}
-
-\subsubsection{Integration Into Civic and Governmental Processes}
-
-PoliScore could support:
-\begin{itemize}
-    \item legislative drafting workflows;
-    \item agency impact assessments;
-    \item think tank analysis standards;
-    \item civic education platforms;
-    \item media fact-checking of policy claims;
-    \item tools for voters seeking clear and structured information.
-\end{itemize}
-
-\subsubsection{Enhanced Retrieval and Evidence Systems}
-
-Carefully constrained web search, specialized retrieval pipelines, and curated knowledge bases could strengthen:
-\begin{itemize}
-    \item evidence evaluation;
-    \item feasibility assessments;
-    \item institutional context modeling;
-    \item cross-jurisdictional comparisons.
-\end{itemize}
-
-\subsubsection{Multimodal Policy Understanding}
-
-As models evolve, future work could incorporate:
-\begin{itemize}
-    \item charts, budgets, and fiscal tables;
-    \item legal diagrams and regulatory schemas;
-    \item geospatial data;
-    \item workflow diagrams for administrative processes.
-\end{itemize}
-
-\subsection{A Path Toward a New Policy Evaluation Standard}
-
-PoliScore is not intended to replace political judgment, democratic deliberation, or human expertise. Rather, it aims to provide a clear, structured, transparent foundation for reasoning about legislation---one grounded in universal principles rather than ideology.
-
-By elevating the discourse surrounding public policy from partisan narratives to structural analysis, PoliScore opens the door to:
-\begin{itemize}
-    \item clearer public understanding,
-    \item more responsible policymaking,
-    \item better institutional design,
-    \item more effective AI systems,
-    \item a healthier democratic process.
-\end{itemize}
-
-The long-term vision is a world in which policymakers, researchers, journalists, and citizens alike have access to transparent, neutral, and rigorous assessments of policy quality---tools that help anchor public debate in reasoned analysis rather than rhetoric.
 
 \subsection{Closing Remarks}
 
-The challenges facing modern societies---economic transformation, climate change, technological disruption, public health, geopolitical instability---demand a new level of clarity and rigor in how legislation is evaluated. PoliScore represents a foundational step toward that future. By combining philosophical grounding, interdisciplinary rigor, and computational capability, it offers a framework for understanding not just what policy says, but how well it is constructed.
+The challenges facing modern societies---economic transformation, climate change, technological disruption, public health, and geopolitical instability---demand a new level of clarity and rigor in how we evaluate both policies and the people who make them. PoliScore offers a concrete, transparent, and extensible starting point: a way to move discussions from partisan narratives toward structured analysis rooted in human welfare and institutional robustness.
 
-This whitepaper invites collaboration from academics, policymakers, technologists, and civic institutions to refine, validate, and expand this work. The development of policy quality engineering will require broad participation, diverse expertise, and ongoing scrutiny---but the potential benefits for democratic governance and societal well-being are substantial.
+By framing both bills and legislators in terms of predicted societal impact, and by making every step of the pipeline explicit and inspectable, PoliScore aims to give voters, researchers, and policymakers a clearer view of what our laws are likely to do---and what our representatives have actually done.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%   BIBLIOGRAPHY   %%%%%%%%%%%%%%%%%%
@@ -1572,9 +1420,8 @@ Elinor Ostrom,
 \textit{Governing the Commons}.
 Cambridge University Press, 1990.
 
-% Add more sources as needed.
+% Additional references to be added in future revisions as the framework and benchmark are further developed.
 
 \end{thebibliography}
 
 \end{document}
-
