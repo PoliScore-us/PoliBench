@@ -25,7 +25,7 @@
 
 \title{\textbf{PoliScore:\\
 From Policy Quality Engineering to Legislative Performance Grading}\\[0.5em]
-\large Version 0.2 --- \today}
+\large Version 0.3 --- \today}
 \date{}
 
 \begin{document}
@@ -39,7 +39,7 @@ From Policy Quality Engineering to Legislative Performance Grading}\\[0.5em]
 \begin{abstract}
 This white paper introduces PoliScore, a first-principles framework and computational pipeline for evaluating both the structural quality of public policy and the aggregate legislative performance of elected officials. At the bill level, PoliScore defines a seven-pillar theory of policy quality---problem clarity, evidence support, implementation feasibility, economic sustainability, distributional impact, governance integrity, and systemic risk---derived from foundational insights in political philosophy, welfare economics, institutional theory, and systems engineering. These dimensions are then mapped into a sectoral impact model that scores legislation on its predicted effects across major policy domains (such as healthcare, education, energy, and national defense) and an overall ``Overall Impact to Society'' metric.
 
-At the legislator level, PoliScore aggregates bill-level impact scores using a transparent model of legislative interactions (sponsorship, co-sponsorship, and roll-call votes), producing scalar performance scores and interpretable letter grades for each legislator. The same framework supports parameterized natural-language summaries that explain a legislator's record in terms accessible to non-expert voters.
+At the legislator level, PoliScore aggregates bill-level impact scores using a transparent model of legislative interactions (sponsorship, co-sponsorship, and roll-call votes), producing Intended Societal Impact scores and interpretable letter grades for each legislator. The same framework supports parameterized natural-language summaries that explain a legislator's record in terms accessible to non-expert voters.
 
 PoliBench, a companion benchmark suite, operationalizes the seven-pillar framework into reproducible evaluation tasks that test an AI system's ability to carry out policy reasoning, foresee unintended consequences, identify governance vulnerabilities, and reason about distributional and sectoral impacts directly from legislative text. Although PoliScore is currently implemented using large language models, the underlying methodology is \emph{model-agnostic}: in principle, the same process could be executed by teams of human analysts following a shared rubric or by alternative AI systems.
 
@@ -413,6 +413,9 @@ The PoliScore framework is designed to:
 
 This framework also provides the theoretical foundation for both the bill-to-legislator pipeline (Section~\ref{sec:pipeline}) and the PoliBench benchmark suite (Section~\ref{sec:polibench}), which tests whether AI systems can reliably interpret and evaluate policy quality along these dimensions.
 
+\paragraph{Definition (Intended Societal Impact).}
+\emph{Intended Societal Impact (ISI)} is the aggregate, expected effect on society implied by the set of bills a legislator sponsors, co-sponsors, or votes for or against, weighted by interaction type. ISI represents the legislator’s revealed policy intent under the PoliScore evaluation framework: the world their legislative record points toward, assuming their positions were enacted.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%   NEW SECTION: PIPELINE   %%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -437,7 +440,7 @@ Conceptually, the end-to-end pipeline can be summarized as:
     \item Bill text is segmented and analyzed under the PoliScore framework.
     \item A sectoral impact vector and an ``Overall Impact to Society'' score are produced for each bill.
     \item Legislator--bill interactions (sponsorship, co-sponsorship, and votes) are collected.
-    \item Each legislator's aggregate impact score is computed as a weighted function of the overall bill impact scores.
+    \item Each legislator's Intended Societal Impact score is computed as a weighted function of the overall bill impact scores.
     \item Legislators and bills receive letter grades derived from their scalar impact scores.
     \item Parameterized natural-language summaries translate these metrics into human-readable narratives.
 \end{enumerate}
@@ -452,7 +455,7 @@ Figure~\ref{fig:pipeline} depicts this process.
     \node (pillars) [right of=bills] {Seven-Pillar\\Policy Quality Analysis};
     \node (sectors) [right of=pillars] {Sectoral Impact\\Scores};
     \node (overall) [right of=sectors] {Overall Impact\\to Society};
-    \node (leg) [right of=overall] {Legislator\\Impact Scores\\\& Grades};
+    \node (leg) [right of=overall] {Legislator\\Intended Societal\\Impact \& Grades};
 
     \draw[->] (bills) -- (pillars);
     \draw[->] (pillars) -- (sectors);
@@ -462,6 +465,18 @@ Figure~\ref{fig:pipeline} depicts this process.
 \caption{High-level PoliScore pipeline from bill text to legislator grades.}
 \label{fig:pipeline}
 \end{figure}
+
+\noindent
+Throughout this paper, a legislator's score is framed primarily in terms of
+\textbf{Intended Societal Impact}. This quantity represents the aggregate,
+expected effect on society implied by the legislator's pattern of sponsorships,
+co-sponsorships, and votes, assuming their preferred positions on bills were
+consistently enacted. It therefore reflects the legislator's \emph{revealed
+policy intent} and the structural quality of the policies they support, rather
+than the empirical outcomes of laws that were actually implemented. In
+Section~\ref{subsec:alt-metrics} we introduce complementary metrics---such as
+realized impact and pillar- or sector-level performance---that provide additional
+perspectives on legislative behavior.
 
 While this pipeline is currently implemented using AI systems as the primary evaluators, each step is defined in a way that could be executed by trained human analysts following the same rubric.
 
@@ -555,10 +570,12 @@ w_{\text{VotedAgainst}} &= -0.5.
 
 The negative weight for \(\text{VotedAgainst}\) indicates that opposing a harmful bill (\(I_b^{\ast} < 0\)) generates positive credit, while opposing a beneficial bill (\(I_b^{\ast} > 0\)) generates negative credit.
 
-For a given legislator \(\ell \in \mathcal{L}\), let \(\mathcal{I}_{\ell}\) denote the set of all (bill, interaction-type) pairs in which they participate. The legislator's raw impact score \(S_{\ell}\) is defined as:
+For a given legislator \(\ell \in \mathcal{L}\), let \(\mathcal{I}_{\ell}\) denote the set of all (bill, interaction-type) pairs in which they participate. The legislator's Intended Societal Impact score, \(\text{ISI}_{\ell}\), is defined as:
 
 \[
-S_{\ell} = \frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} w_T \, I_b^{\ast}}{\sum_{(b, T) \in \mathcal{I}_{\ell}} |w_T|}.
+\text{ISI}_{\ell} =
+\frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} w_T \, I_b^{\ast}}
+     {\sum_{(b, T) \in \mathcal{I}_{\ell}} |w_T|}.
 \]
 
 This formulation:
@@ -571,13 +588,71 @@ This formulation:
     \item normalizes scores so that legislators with many interactions are comparable to those with fewer.
 \end{itemize}
 
-Alternative weighting schemes can be explored (for example, increasing the weight of sponsorship relative to floor votes), but any change must be documented and kept constant for the period being analyzed.
+Intended Societal Impact should be interpreted as the \emph{expected societal impact of the legislator's policy record if their preferred positions were enacted}. It reflects intent, judgment, and policy quality alignment under the PoliScore framework.
+
+\subsection{Alternative and Complementary Legislator Metrics}
+\label{subsec:alt-metrics}
+
+The aggregation rule above defines a legislator’s primary score as a function of bill-level impact values. In Poliscore, this quantity is called the legislator’s \textbf{Intended Societal Impact} (ISI). While ISI is the central metric, the same pipeline naturally supports additional views of legislative performance.
+
+This subsection introduces three complementary perspectives built on the same primitives: realized societal impact, pillar-level performance, and sector-level performance.
+
+\subsubsection{Realized Societal Impact}
+
+While ISI measures the consequences of a legislator’s \emph{intent}, a natural complement is to measure their contribution to laws that actually entered into force. Let $E_b \in \{0,1\}$ indicate whether bill $b$ was enacted. A realized variant is then:
+
+\[
+\text{RealizedImpact}_{\ell} =
+\frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} E_b \, w_T \, I_b^{\ast}}
+     {\sum_{(b, T) \in \mathcal{I}_{\ell}} E_b \, |w_T|}.
+\]
+
+Where ISI captures ``the world they are trying to create,'' the realized score captures ``the world their successful actions have contributed to.'' The two together provide a fuller behavioral portrait.
+
+\subsubsection{Pillar-Level Performance Profiles}
+
+Each bill $b$ is evaluated along seven structural pillars of policy quality.
+Let $D_{b,k}$ denote the score of bill $b$ on pillar $k \in \{1,\dots,7\}$. A
+legislator-level pillar profile is defined by:
+
+\[
+Q_{\ell,k} =
+\frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} w_T \, D_{b,k}}
+     {\sum_{(b, T) \in \mathcal{I}_{\ell}} |w_T|}.
+\]
+
+The vector $(Q_{\ell,1}, \ldots, Q_{\ell,7})$ summarizes how closely a
+legislator’s supported policies align with high-quality design principles:
+clarity of problem definition, evidence base, implementation feasibility,
+fairness, governance integrity, and systemic risk. These profiles can be
+surfaced directly to users (e.g., as tables or radar plots) and incorporated
+into summary narratives.
+
+\subsubsection{Sectoral Performance Profiles}
+
+Analogously, for each bill PoliScore defines sectoral impacts $I_{b,s}$ for
+sectors $s \in \mathcal{S}$. Aggregating these yields:
+
+\[
+R_{\ell,s} =
+\frac{\sum_{(b, T) \in \mathcal{I}_{\ell}} w_T \, I_{b,s}}
+     {\sum_{(b, T) \in \mathcal{I}_{\ell}} |w_T|}.
+\]
+
+The vector $(R_{\ell,s})_{s \in \mathcal{S}}$ reveals where a legislator is most
+helpful or harmful across domains such as healthcare, energy, national defense,
+housing, or the environment.
+
+Together, the Intended Societal Impact score, its realized-impact counterpart,
+and these pillar- and sector-level profiles form a multi-dimensional,
+transparent representation of legislative performance grounded in the
+PoliScore policy quality framework.
 
 \subsection{Letter Grades for Bills and Legislators}
 
 To make the results accessible to voters, PoliScore converts raw impact scores into letter grades.
 
-For bills, the letter grade is derived directly from \(I_b^{\ast}\); for legislators, from \(S_{\ell}\). A simple and currently deployed mapping is:
+For bills, the letter grade is derived directly from \(I_b^{\ast}\); for legislators, from \(\text{ISI}_{\ell}\) or from an alternative legislator-level scalar such as \(\text{RealizedImpact}_{\ell}\). A simple and currently deployed mapping is:
 
 \begin{align*}
     \text{A} &: I \geq 40, \\
@@ -586,7 +661,7 @@ For bills, the letter grade is derived directly from \(I_b^{\ast}\); for legisla
     \text{D} &: 0 \leq I < 15, \\
     \text{F} &: I < 0,
 \end{align*}
-where \(I\) is either a bill's overall impact score \(I_b^{\ast}\) or a legislator's aggregate score \(S_{\ell}\).
+where \(I\) is either a bill's overall impact score \(I_b^{\ast}\) or a legislator's aggregate score.
 
 These thresholds are intentionally simple and interpretable. They are not meant to be perfect statistical constructs, but to provide a consistent, monotonic mapping between scalar impact scores and an intuitive grading scale familiar to the public.
 
@@ -894,8 +969,9 @@ Once bill-level overall impact scores \(I_b^{\ast}\) are computed, legislator pe
 \begin{enumerate}
     \item Construct the set of legislator--bill interactions from roll-call data and bill metadata (sponsorship and co-sponsorship).
     \item Apply the weighting scheme \(w_T\) to each interaction type \(T\).
-    \item For each legislator \(\ell\), compute the raw score \(S_{\ell}\) as a normalized weighted sum of \(I_b^{\ast}\).
-    \item Map \(S_{\ell}\) to a letter grade via the standard threshold function.
+    \item For each legislator \(\ell\), compute the Intended Societal Impact score \(\text{ISI}_{\ell}\) as a normalized weighted sum of \(I_b^{\ast}\).
+    \item Optionally compute complementary metrics such as \(\text{RealizedImpact}_{\ell}\), pillar-level profiles \(Q_{\ell,k}\), and sectoral profiles \(R_{\ell,s}\).
+    \item Map scalar legislator scores to letter grades via the standard threshold function.
     \item Generate sectoral breakdowns of the legislator's performance (e.g., average impact in healthcare vs.\ energy).
     \item Feed these statistics into the parameterized summary prompt to produce a narrative overview.
 \end{enumerate}
@@ -928,7 +1004,7 @@ For each bill, PoliScore produces:
 For each legislator, PoliScore provides:
 
 \begin{itemize}
-    \item the overall impact score and letter grade,
+    \item the Intended Societal Impact score and letter grade,
     \item sectoral performance statistics,
     \item a list of most influential positive and negative bill interactions,
     \item a three-paragraph narrative summary generated from the parameterized prompt.
@@ -1023,7 +1099,7 @@ PoliScore:
 \end{itemize}
 
 Think tanks answer: \textit{``Is this policy aligned with our values or goals?''}\\
-PoliScore answers: \textit{``How structurally sound is this policy, and what is the aggregate impact of a legislator's actions?''}
+PoliScore answers: \textit{``How structurally sound is this policy, and what is the aggregate Intended Societal Impact of a legislator's actions?''}
 
 \subsection{Academic Public Policy and Political Science Programs}
 
@@ -1106,7 +1182,7 @@ Table~\ref{tab:institutions} summarizes the relationships between existing insti
         CBO &
         Budgetary/fiscal impacts &
         Governance, feasibility, fairness, systemic risk, individual records &
-        Provides holistic pre-implementation structural and impact evaluation, plus legislator aggregation. \\
+        Provides holistic pre-implementation structural and impact evaluation, plus legislator aggregation via Intended Societal Impact. \\
         \midrule
         Think Tanks &
         Ideology-driven arguments &
@@ -1372,7 +1448,7 @@ PoliScore addresses this gap by:
 \begin{itemize}
     \item articulating a principled, interdisciplinary theory of policy quality grounded in human needs, political philosophy, institutional economics, governance theory, and systems thinking;
     \item formalizing this theory into a seven-pillar evaluation framework and a sectoral impact model that yield an ``Overall Impact to Society'' score for each bill;
-    \item defining a transparent aggregation pipeline from bill-level impacts to legislator-level performance scores and letter grades;
+    \item defining a transparent aggregation pipeline from bill-level impacts to legislator-level Intended Societal Impact scores and letter grades;
     \item providing parameterized natural-language summaries that help voters understand complex legislative histories;
     \item introducing PoliBench, a benchmark suite for measuring AI competence in policy reasoning and ensuring a baseline level of evaluator reliability.
 \end{itemize}
