@@ -25,7 +25,7 @@
 
 \title{\textbf{PoliScore:\\
 From Policy Quality Engineering to Legislative Performance Grading}\\[0.5em]
-\large Version 0.3 --- \today}
+\large Version 0.4 --- \today}
 \date{}
 
 \begin{document}
@@ -918,6 +918,44 @@ Metadata helps evaluators identify feasibility constraints, institutional confli
 \subsubsection{Legislative Normalization}
 
 Formatting inconsistencies, redundant boilerplate, and non-substantive artifacts (e.g., page headers, XML tags) are removed to reduce noise. The goal is to present the evaluator with a clean representation of the substantive legal content.
+
+\subsection{Versioned Legislative Text and Semantic Diffing}
+
+Real-world legislation is rarely static. Bills are frequently amended in committee,
+modified on the floor, reconciled between chambers, or replaced entirely via
+``strike-and-insert'' procedures. Treating a bill as a single, fixed document
+therefore obscures an important part of the lawmaking process: \emph{how the text
+evolved over time and who supported which changes}.
+
+PoliScore can be extended to operate over \emph{versioned} legislative text rather
+than only the final enrolled version. Given a sequence of bill versions
+\(\{b^{(1)}, b^{(2)}, \dots, b^{(T)}\}\), the system can:
+
+\begin{itemize}
+    \item compute traditional text diffs to identify added, removed, or modified
+    provisions;
+    \item apply \emph{semantic} diffing, using an evaluator to summarize the
+    substantive effect of those changes (e.g., ``narrows eligibility to these
+    populations,'' ``removes the sunset clause,'' ``adds an enforcement mechanism'');
+    \item update pillar scores and sectoral impacts incrementally as the bill
+    evolves, rather than re-scoring from scratch;
+    \item attribute amendments or version shifts to specific sponsors or coalitions,
+    where metadata is available.
+\end{itemize}
+
+This opens the door to a richer class of analyses. Instead of asking only,
+``What is the Overall Impact to Society of the final bill text?'' PoliScore can
+also ask, ``How did the bill's Intended Societal Impact change over time, and which
+actors consistently pushed it toward more or less beneficial outcomes?''
+
+In principle, the same framework used for bill-level scoring can be applied to
+pairs of versions \((b^{(t)}, b^{(t+1)})\), with the evaluator focused specifically
+on the marginal change in structure, feasibility, fairness, or systemic risk.
+This enables semantic diffing that is far more informative than line-based text
+comparisons, and it aligns naturally with the legislator-level aggregation
+described in Section~\ref{sec:pipeline}: amendments and versioned edits become
+additional interaction events that shape a legislator's profile of Intended
+Societal Impact.
 
 \subsection{Dimension-Level Policy Evaluation}
 
