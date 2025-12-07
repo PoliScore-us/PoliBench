@@ -24,8 +24,8 @@
 }
 
 \title{\textbf{PoliScore:\\
-A Computational Theory of Governance}\\[0.5em]
-\large Draft 0.5 --- \today}
+A Framework for Transparent, Auditable Governance}\\[0.5em]
+\large Draft 0.6 --- \today}
 \date{}
 
 \begin{document}
@@ -34,42 +34,37 @@ A Computational Theory of Governance}\\[0.5em]
 
 \begin{center}
 \textit{\footnotesize
-The methodologies, frameworks, and evaluation systems described in this white paper should be understood as an
-\emph{aspirational blueprint} for a world searching for a better way to engage with politics. The features currently
-deployed on \texttt{poliscore.us} reflect earlier and simplified versions of this framework
-and should be interpreted as experimental demonstrations---not as a complete realization of the system described
-here. While I have taken the time to paint a vision, it is you the reader who must ultimately invest in it.}
+This document is a vision statement for what PoliScore could become: an open, rigorous, and scalable framework for
+evaluating legislation and legislative behavior. The system described here is not yet fully implemented; the live
+features on \texttt{poliscore.us} represent early prototypes of a much broader aspiration. Bringing this framework to its
+full potential will require resources, collaborators, and sustained support from those who believe in the value of
+transparent, accountable governance.}
 \end{center}
 
 \begin{abstract}
-PoliScore is an attempt to create a non-partisan grading/scoring system for bills and legislators. It consists of two core systems:
-(1) a non-partisan framework for evaluating the quality and expected societal impact of individual bills, and
-(2) an impact aggregation and interpretation pipeline for translating those bill-level assessments into clear,
-transparent measures of legislative performance.
+Artificial intelligence has fundamentally transformed our ability to read, categorize, and reason over large volumes
+of text. Nowhere is this transformation more consequential than in democratic governance, where legislative text—
+the primary artifact of policymaking—remains abundant, complex, and largely unanalyzed at scale. Despite its centrality,
+there exists no widely accepted, non-partisan standard for evaluating the structural quality of legislation or the
+long-run performance of the elected officials who shape it.
 
-At the bill level, PoliScore defines a seven-pillar framework for policy quality---problem clarity, evidence support,
-implementation feasibility, economic sustainability, distributional impact, governance integrity, and systemic risk---
-derived from foundational insights in political philosophy, welfare economics, institutional theory, and systems
-engineering. These dimensions are connected to a sectoral impact model that scores legislation on its predicted effects
-across major policy domains (such as healthcare, education, energy, and national defense) and an ``Overall Impact to
-Society'' metric.
+As AI models proliferate across the ideological spectrum, it becomes trivial to measure a legislator's alignment with
+any worldview; yet it remains exceedingly difficult to construct an AI system that meaningfully justifies corruption or
+governance failure. With rigorous benchmarks and transparent evaluation criteria, biased or captured models can be
+quickly exposed. This makes AI not only a tool for interpreting policy, but a structural counterweight to corruption:
+auditable, stress-testable, and capable of revealing patterns of behavior invisible to human-scale analysis.
 
-At the legislator level, PoliScore sketches a transparent aggregation pipeline from bill-level impact scores and
-legislator--bill interactions (sponsorship, co-sponsorship, and roll-call votes) to Intended Societal Impact scores
-and interpretable letter grades for each legislator. The same framework supports parameterized natural-language
-summaries that could explain a legislator's record in terms accessible to non-expert voters.
+PoliScore operationalizes this opportunity. It provides a principled, reproducible framework for evaluating legislative
+text, grounded in an explicit seven-pillar model of policy quality and a scalable aggregation pipeline for deriving
+legislator-level impact measures. Its architecture consists of three components: \emph{PoliBench}, an open-source suite
+for benchmarking an AI model's policy-reasoning capabilities; \emph{PoliScore}, an open-source interpretation engine for
+fetching, evaluating, and aggregating bill text; and \emph{PoliScore Web}, a closed-source platform that delivers these
+capabilities to practitioners, researchers, journalists, and the public.
 
-PoliBench, a companion benchmark suite, is proposed as a way to operationalize the seven-pillar framework into
-reproducible evaluation tasks that test an AI system's ability to carry out policy reasoning, foresee unintended
-consequences, identify governance vulnerabilities, and reason about distributional and sectoral impacts directly from
-legislative text. Although early experiments with PoliScore use large language models as evaluators, the underlying
-methodology is \emph{model-agnostic}: in principle, the same process could be executed by teams of human analysts
-following a shared rubric or by alternative AI systems.
-
-This paper is written in explicit contrast to the present media ecosystem, in which divisive narratives, outrage
-cycles, and engagement-optimized feeds dominate public attention. PoliScore is offered as an alternate organizing
-principle: a world where public debate is anchored in the structural quality and expected societal impact of legislation,
-rather than in partisan branding or isolated viral moments.
+Together, these tools convert legislative text into structured civic knowledge—quantitative scores, qualitative
+analyses, and audit-ready evaluations—usable by citizens, researchers, nonprofits, journalists, legislative staff, and
+oversight institutions. By grounding political AI in transparent methodology and open benchmarks, PoliScore aims to
+ensure that AI strengthens democratic accountability rather than undermining it.
 \end{abstract}
 
 \newpage
@@ -83,63 +78,160 @@ rather than in partisan branding or isolated viral moments.
 \section{Introduction}
 \label{sec:intro}
 
-Public policy shapes the daily lives of individuals and the long-term trajectory of societies. Yet despite its immense
-influence, there is no widely accepted, non-partisan standard for evaluating the quality of legislation before it is
-enacted, nor a unified methodology for summarizing the long-run legislative performance of elected officials in terms
-ordinary voters can understand.
+\subsection{AI as a Counterweight to Corruption}
 
-Instead, modern-day politics resembles something more of a popularity contest than a serious discussion around governance.
-News feeds, social platforms, and partisan media outlets are structurally incentivized to amplify spectacle, conflict, and simplified
-narratives that drive clicks and engagement. The question is rarely, ``Is this bill well-designed and societally
-beneficial?'' It is more often, ``Does this story fit our tribe's narrative, and will people share it?''
+Artificial intelligence has fundamentally changed what is possible in textual analysis.
+Tasks that once required teams of researchers—categorizing documents, extracting structure from unstructured text, synthesizing patterns across thousands of pages—are now solvable with commodity hardware and off-the-shelf models. AI’s ability to interpret, compare, and aggregate large volumes of text is not a marginal improvement; it is a fundamental transformation. It enables a scale and precision of political analysis that was previously unimaginable.
 
-In that environment, voters face an impossible informational task. Organized misinformation campaigns, partisan media
-ecosystems, and attention-maximizing platforms collectively produce a high-noise landscape in which the underlying policy
-record of legislators is difficult to discern. It is easy to surface a few symbolic votes or speeches; it is far harder
-to understand the cumulative impact of years of legislative activity on real human outcomes.
+This matters because legislative text is the beating heart of democratic governance.
+Every congressional session introduces upward of sixteen thousand bills—most of which are never analyzed in depth by journalists, academics, or the public. These bills collectively contain the intentions, priorities, incentives, and structural choices that shape real human outcomes. They are also a gold mine for data analysis: highly formalized, machine-readable documents that reflect the operational logic of government. AI is uniquely suited to read them all.
 
-At the same time, advances in artificial intelligence have made it technically feasible to read and reason over large
-volumes of legislative text, related reports, and contextual evidence. Used carefully, AI could help bridge the gap
-between raw policy artifacts and structured, interpretable assessments. Used naively, AI risks becoming a new kind of
-opaque authority that produces persuasive but ungrounded judgments that replicate the worst dynamics of the current media ecosystem.
+And yet, despite the centrality of these texts, public policy still lacks a widely accepted, non-partisan standard for evaluating the quality of legislation before it is enacted.
+Public policy shapes the daily lives of individuals and the long-term trajectory of societies, but we possess no unified methodology for assessing the structural soundness of a bill, its expected societal impact, or the cumulative performance of elected officials in terms ordinary voters can understand. The gap between the importance of legislation and our ability to evaluate it is one of the great unaddressed failures of modern governance.
 
-PoliScore is an attempt to imagine something better.
+AI enters precisely at this fault line.
 
-\begin{itemize}
-    \item to define a rigorous, academically grounded theory of policy quality,
-    \item to formalize a repeatable process for evaluating bills along that theory,
-    \item to translate those evaluations into sectoral and overall impact scores,
-    \item to aggregate impacts into transparent, interpretable legislator grades,
-    \item and to provide benchmark tasks for testing the AI systems used along the way.
-\end{itemize}
+As AI models continue to diversify, we will soon have systems representing every major political ideology across the spectrum. This is not speculative; it is an inevitable property of open-source model ecosystems, fine-tuning, and market incentives. Once such models exist, analyzing a legislator’s conformance to a particular ideology becomes almost trivial. With minimal tooling, a motivated analyst could run the entire U.S. Congress through an ideological alignment pipeline in a single weekend for well under \$100. At scale, such analysis can be performed for pennies.
 
-The long-term vision can be stated simply:
+But this development leads to an unexpected—and profound—conclusion.
+While it is easy to build an AI model that reflects a particular ideological worldview, it is extremely difficult to construct one that credibly frames legislative corruption as a net positive for society. Even if someone attempted to engineer such a worldview, its internal contradictions would be obvious under scrutiny. With sufficiently rigorous benchmarks and test suites, corrupt or captured models can be exposed quickly and unambiguously. The very act of trying to justify corruption becomes an empirical liability.
 
-\begin{quote}
-\textit{If we can show that we can evaluate bills in a non-partisan, well-grounded, and reproducible way, then we can
-evaluate legislators by aggregating the impacts of their bill-level interactions.}
-\end{quote}
+This is the paradox:
+The same technological force that can be used to persuade, manipulate, or obscure the truth can also be used to reveal patterns of corruption that were previously invisible. Because AI models can be audited, stress-tested, compared, and benchmarked, they become natural allies in the fight for transparent governance. Their biases are measurable. Their interpretations are reproducible. Their methods are inspectable.
 
-PoliScore therefore has two tightly coupled layers:
+Therefore, AI—when used to categorize, interpret, and aggregate legislative text—is not merely a tool for understanding politics.
+It becomes a structural counterweight to corruption itself.
+
+In a political environment where trust is eroding and information is abundant but disorganized, AI provides something rare:
+a scalable, falsifiable, systematic way to evaluate the gap between what legislators \emph{say} and what they \emph{do}.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   BRIDGING SECTION   %%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{From Vision to System Design}
+
+If AI is to serve as a structural counterweight to corruption, then it must operate within a framework that is
+transparent, principled, and reproducible. The challenge is not merely to read legislative text, but to evaluate it
+against standards that reflect societal values, institutional safeguards, and long-term public welfare. In other words,
+AI requires a scaffold: a conceptual architecture that constrains interpretation, enforces rigor, and provides a shared
+language for evaluation. Without such a scaffold, AI risks drifting toward persuasion, mimicry, or ideological capture.
+
+PoliScore provides that scaffold. It translates the high-level promise of AI-driven governance analysis into a concrete,
+structured methodology. Where the preceding discussion identifies the \emph{opportunity}—a world where AI can interpret
+and audit the entirety of legislative activity—PoliScore answers the core design question: \emph{How can we build such a system?
+And how can we do it in a way which reinforces, rather than deteroriates, our existing democratic institutions?} What makes a bill
+structurally sound? What constitutes evidence-based governance? How should competing societal impacts be weighed? And how do we
+distinguish between policy quality, ideological preference, and corruption?
+
+To address these questions, PoliScore introduces a coherent conceptual system grounded in two insights:
 
 \begin{enumerate}
-    \item a \textbf{policy quality layer}, which evaluates the structure, evidence base, and predicted societal impact
-          of individual bills; and
-    \item a \textbf{legislator performance layer}, which aggregates those bill-level impacts according to how legislators
-          sponsor, co-sponsor, and vote on them.
+    \item \textbf{Policy evaluation requires explicit criteria.}  
+    Without a normative framework, AI becomes a mirror for the data it consumes. PoliScore's seven-pillar model provides
+    the interpretive backbone necessary for consistency, comparability, and transparency.
+
+    \item \textbf{Legislative performance is an aggregation problem.}  
+    Legislators do not exist in isolation from the bills they sponsor, co-sponsor, amend, or vote upon. Their civic
+    impact emerges only when those interactions are systematically aggregated across time. AI makes such aggregation
+    computationally tractable at national scale.
 \end{enumerate}
 
-Although PoliScore was envisioned first and foremost to deal with political problems surfacing in the United States, these problems
-are by no means unique to the U.S. In principle, any nation built on the rule of law---with machine-readable legislative text and a traceable record of lawmaker interactions---
-could adopt, extend, or branch the PoliScore codebase. Doing so requires not only open-source licensing, but also careful
-abstraction of jurisdiction-specific components (such as chamber structure, bill taxonomies, and voting procedures) and
-thorough documentation so that new maintainers can adapt the core policy quality model to fit different constitutional
-arrangements and political institutions without altering its foundational principles.
+Through this combination of structured evaluation and scalable aggregation, PoliScore transforms the philosophical idea
+that AI can reveal patterns, incentives, and institutional behavior into a practical analytical system. It gives AI
+\emph{rules}, \emph{tasks}, and \emph{benchmarks} that tether its outputs to democratic and institutional values rather
+than partisan narratives. The framework directs the power of large-scale textual analysis toward clarity, accountability,
+and public understanding rather than persuasion.
 
-At present, PoliScore is a solo project built in spare time and sustained by personal conviction rather than grants or
-institutional funding. The system described in the pages that follow is therefore aspirational: it outlines what could
-exist if the necessary technical, civic, and financial support materialized. Throughout, the emphasis is on clarity and
-transparency, so that others can critique, extend, and---if they wish---help build the infrastructure this vision implies.
+In short, PoliScore operationalizes the principle that political AI must be evaluative, audit-ready, and grounded in
+explicit methodological commitments—not merely generative or performative.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   ARCHITECTURE SECTION   %%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{The Architecture of PoliScore}
+
+The PoliScore ecosystem is intentionally structured as an \emph{open core}—a set of public, MIT-licensed tools that
+enable transparent, auditable analysis of legislative text—paired with a privately maintained application layer that
+sustains long-term development. This architecture consists of three primary components:
+
+\begin{enumerate}
+    \item \textbf{PoliBench}  
+    PoliBench is an open-source, MIT-licensed benchmarking suite designed to measure an AI model's capacity for
+    evaluating legislation. It provides structured tasks derived from PoliScore’s seven-pillar framework, including
+    assessments of problem clarity, evidence support, governance integrity, systemic risk, and predicted sectoral
+    impacts. By offering reproducible benchmark tasks, PoliBench enables researchers, developers, and the public to
+    evaluate how well different AI systems interpret legislative text and to expose biases, inconsistencies, or
+    ideological capture. In essence, it defines what “good policy reasoning” looks like for AI.
+
+    \item \textbf{PoliScore}  
+    PoliScore is an open-source, MIT-licensed interpretation pipeline for fetching, processing, and evaluating bill
+    text. It operationalizes the seven-pillar policy quality model, generates both quantitative impact scores and
+    qualitative natural-language analyses, and aggregates those bill-level evaluations into legislator-level measures
+    such as Intended Societal Impact scores and parameterized summaries. PoliScore is the analytical engine that turns
+    legislative text into structured, interpretable civic knowledge.
+
+    \item \textbf{PoliScore Web}  
+    PoliScore Web is a closed-source platform built on top of the open core. It provides the user interface, database
+    infrastructure, authentication, operational tooling, and long-term sustainability mechanisms necessary to deliver
+    PoliScore to the public. While the analytical logic remains fully open-source, this layer ensures that the broader
+    ecosystem can be maintained, hosted, and scaled as a durable public resource. PoliScore Web exists to support the
+    mission of the open-source components—not to enclose them.
+\end{enumerate}
+
+Together, these components form a coherent architecture: PoliBench defines and tests the capabilities required for
+trustworthy policy reasoning; PoliScore performs those reasoning tasks at scale; and PoliScore Web delivers those results
+to practitioners, researchers, journalists, and citizens.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%   USE CASES AND VALUE   %%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\subsection{Who is this For?}
+
+The PoliScore ecosystem is designed not merely as a technical exercise, but as an enabling infrastructure for a wide
+range of civic, academic, journalistic, and institutional users. By converting the full corpus of legislative text into
+interpretable, auditable metrics, PoliScore provides three broad categories of value:
+
+\subsection*{1. Transparency and Accountability}
+\begin{itemize}
+    \item \textbf{Citizens} gain an evidence-based view of legislative behavior, allowing them to see not just what
+    politicians say, but what they structurally support through their bill interactions.
+    \item \textbf{Watchdog groups and anti-corruption organizations} can use PoliScore and PoliBench to detect patterns
+    of governance failure, hidden incentives, or legislative behavior inconsistent with public commitments.
+    \item \textbf{Journalists} receive a scalable analytical tool for contextualizing votes, identifying trends across
+    sessions, and grounding political narratives in measurable policy impact.
+\end{itemize}
+
+\subsection*{2. Research and Methodological Rigor}
+\begin{itemize}
+    \item \textbf{Policy researchers and academics} gain a reproducible framework for evaluating policy quality across
+    time, domains, and jurisdictions.
+    \item \textbf{AI researchers} gain benchmark tasks and stress tests capable of revealing how well different models
+    reason about governance—a domain traditionally considered too nuanced for automation.
+    \item \textbf{Government oversight bodies} can use the system to audit legislative portfolios or evaluate the policy
+    literacy of AI systems used internally.
+\end{itemize}
+
+\subsection*{3. Practical Decision-Making}
+\begin{itemize}
+    \item \textbf{Nonprofits and advocacy organizations} can rapidly assess whether a bill aligns with their mission or
+    introduces systemic risks or governance vulnerabilities.
+    \item \textbf{Legislative staff} can use PoliScore to identify similar historical bills, compare policy structures,
+    or anticipate the downstream consequences of proposed amendments.
+    \item \textbf{Voters and civic educators} can use the system to explain the real-world impacts of legislation in
+    clear, accessible language.
+\end{itemize}
+
+Across these domains, the central value proposition is consistent: PoliScore transforms legislative text—a dense,
+technical, often impenetrable artifact—into structured civic knowledge that is scalable, falsifiable, and aligned with
+the public interest. By grounding AI analysis in explicit methodologies and public benchmarks, the system helps ensure
+that political AI enhances democratic accountability rather than undermining it.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%   SECTION 1   %%%%%%%%%%%%%%%%%%%%%
