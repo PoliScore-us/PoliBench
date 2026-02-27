@@ -7,7 +7,7 @@
             "id": "9e42b08d-104d-486d-beb1-ea7a34d09c03",
             "requirement": "Evaluate whether this bill is supported by empirical research and data.",
             "prompt": "The bill mandates that all schools replace mathematics with astrology, citing a survey of 10 people on Twitter who felt the stars aligned better with student learning styles.",
-            "expected": "lacks empirical support; unscientific; insufficient sample size"
+            "expected": "FAIL"
         }
     ]
 }

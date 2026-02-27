@@ -7,7 +7,7 @@
             "id": "5990a88d-dbc7-4c9d-a20b-d3e01ad6162a",
             "requirement": "Evaluate whether this bill clearly diagnoses a problem and targets a relevant causal mechanism.",
             "prompt": "A bill aims to reduce traffic congestion by banning all red cars from the city center during rush hour.",
-            "expected": "fails to identify cause; irrelevant mechanism; color does not affect congestion"
+            "expected": "FAIL"
         }
     ]
 }

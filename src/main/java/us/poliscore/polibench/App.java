@@ -16,7 +16,6 @@ import us.poliscore.polibench.providers.AiProvider;
 import us.poliscore.polibench.providers.OpenAIProvider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
 
 import java.io.File;
 import java.io.InputStream;
@@ -61,40 +60,15 @@ public class App implements Runnable {
             AiProvider provider = getProvider(modelId);
             ObjectMapper mapper = new ObjectMapper();
 
-            // Load suites
+            // Step 1: Load Test Suites
             List<TestSuite> allSuites = loadTestSuites(mapper);
             if (allSuites.isEmpty()) {
                 System.err.println("No test suites found! Exiting.");
                 return;
             }
 
-            List<ModelRequest> allRequests = new ArrayList<>();
-            Map<String, Task> taskMap = new java.util.HashMap<>();
-            int totalExpectedOutputTokens = 0;
-            int totalInputTokens = 0;
-
-            // Generate requests from tasks
-            for (TestSuite suite : allSuites) {
-                System.out.println("Loaded Suite: " + suite.getName() + " (" + suite.getTasks().size() + " tasks)");
-                for (Task task : suite.getTasks()) {
-                    String reqId = (task.getId() != null && !task.getId().isEmpty()) ? task.getId()
-                            : UUID.randomUUID().toString();
-                    task.setId(reqId);
-                    taskMap.put(reqId, task);
-
-                    String systemPrompt = "You are an expert policy analyst and evaluator acting on behalf of a non-partisan oversight committee. "
-                            +
-                            task.getRequirement();
-
-                    int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + task.getPrompt());
-                    totalInputTokens += promptTokens;
-
-                    // We assume a short paragraph answer to evaluate, ~150 words/tokens estimated
-                    totalExpectedOutputTokens += 150;
-
-                    allRequests.add(new ModelRequest(reqId, systemPrompt, task.getPrompt()));
-                }
-            }
+            // Step 2: Generate Requests & Calculate Tokens
+            PipelineContext context = buildRequestsContext(allSuites);
 
             List<ModelResponse> responses;
 
@@ -102,75 +76,18 @@ public class App implements Runnable {
                 System.out.println("Parsing existing batch results from: " + existingBatchResult.getAbsolutePath());
                 responses = provider.parseBatchResults(existingBatchResult.getAbsolutePath());
             } else {
-                // Determine Cost
-                double estimatedCost = provider.calculateEstimatedCost(totalInputTokens, totalExpectedOutputTokens);
-                System.out.printf("\n--- COST ESTIMATION ---\n");
-                System.out.printf("Total Input Tokens (est):  %d\n", totalInputTokens);
-                System.out.printf("Total Output Tokens (est): %d\n", totalExpectedOutputTokens);
-                System.out.printf("Estimated Batch Cost:      $%.4f\n\n", estimatedCost);
-
-                if (!autoAccept) {
-                    System.out.print("This will require " + allRequests.size() + " requests to " + modelId +
-                            " and will cost an estimated $" + String.format("%.2f", estimatedCost)
-                            + ". Do you accept? (y/N): ");
-                    Scanner scanner = new Scanner(System.in);
-                    String answer = scanner.nextLine().trim().toLowerCase();
-                    if (!answer.equals("y") && !answer.equals("yes")) {
-                        System.out.println("Aborting.");
-                        return;
-                    }
+                // Step 3: Confirm Execution Cost
+                if (!confirmExecutionCost(provider, context)) {
+                    System.out.println("Aborting.");
+                    return;
                 }
 
-                // Generate Batch File
-                String batchFileName = "polibench_batch_input_" + System.currentTimeMillis() + ".jsonl";
-                provider.generateBatchFile(allRequests, batchFileName);
-                System.out.println("Generated batch input file: " + batchFileName);
-
-                System.out.println(
-                        "\n[Action Required] The batch file is ready. For the prototype, you must manually upload this file to the OpenAI Batch API.");
-                System.out.println(
-                        "Once the batch succeeds and you download the output JSONL file, re-run this tool with: ");
-                System.out.println(
-                        "  java -jar target/polibench-1.0-SNAPSHOT.jar --results-only <path_to_downloaded_jsonl>");
-                return;
+                // Step 4: Execute Batch Pipeline
+                responses = executeBatchPipeline(provider, context.requests);
             }
 
-            // Evaluation Phase
-            System.out.println("\nStarting Evaluation Engine...");
-            BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
-            BenchmarkResult finalResult = new BenchmarkResult(modelId, java.time.Instant.now().toString());
-
-            Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
-                    .flatMap(suite -> suite.getTasks().stream()
-                            .map(t -> new java.util.AbstractMap.SimpleEntry<>(suite.getPillar(), t)))
-                    .collect(Collectors.groupingBy(Map.Entry::getKey,
-                            Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
-
-            for (Map.Entry<Pillar, List<Task>> entry : tasksByPillar.entrySet()) {
-                Pillar pillar = entry.getKey();
-                int totalPillarTasks = entry.getValue().size();
-                int passedTasks = 0;
-
-                for (Task task : entry.getValue()) {
-                    ModelResponse resp = responses.stream()
-                            .filter(r -> r.getRequestId().equals(task.getId()))
-                            .findFirst()
-                            .orElse(null);
-
-                    if (resp != null && evaluator.evaluate(task, resp)) {
-                        passedTasks++;
-                    } else if (resp == null) {
-                        System.err.println("WARNING: Missing response for task ID: " + task.getId());
-                    }
-                }
-
-                finalResult.getPillarScores().put(pillar,
-                        new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks));
-            }
-
-            // Write final results
-            mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, finalResult);
-            System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
+            // Step 5: Evaluate Results
+            evaluateResults(mapper, allSuites, responses);
 
         } catch (Exception e) {
             System.err.println("Fatal error during execution: " + e.getMessage());
@@ -178,8 +95,125 @@ public class App implements Runnable {
         }
     }
 
+    private static class PipelineContext {
+        List<ModelRequest> requests = new ArrayList<>();
+        int totalInputTokens = 0;
+        int totalExpectedOutputTokens = 0;
+    }
+
+    private PipelineContext buildRequestsContext(List<TestSuite> allSuites) {
+        PipelineContext context = new PipelineContext();
+        for (TestSuite suite : allSuites) {
+            System.out.println("Loaded Suite: " + suite.getName() + " (" + suite.getTasks().size() + " tasks)");
+            for (Task task : suite.getTasks()) {
+                String reqId = (task.getId() != null && !task.getId().isEmpty()) ? task.getId()
+                        : UUID.randomUUID().toString();
+                task.setId(reqId);
+
+                String systemPrompt = "You are an expert policy analyst and evaluator acting on behalf of a non-partisan oversight committee. "
+                        + task.getRequirement()
+                        + " Conclude your analysis by writing either '<PASS>' or '<FAIL>'.";
+
+                int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + task.getPrompt());
+                context.totalInputTokens += promptTokens;
+                context.totalExpectedOutputTokens += 150;
+
+                context.requests.add(new ModelRequest(reqId, systemPrompt, task.getPrompt()));
+            }
+        }
+        return context;
+    }
+
+    @SuppressWarnings("resource")
+    private boolean confirmExecutionCost(AiProvider provider, PipelineContext context) {
+        // Skip prompt for mock (it's free anyway)
+        if (modelId.equals("mock") || autoAccept) {
+            return true;
+        }
+
+        double estimatedCost = provider.calculateEstimatedCost(context.totalInputTokens,
+                context.totalExpectedOutputTokens);
+        System.out.printf("\n--- COST ESTIMATION ---\n");
+        System.out.printf("Total Input Tokens (est):  %d\n", context.totalInputTokens);
+        System.out.printf("Total Output Tokens (est): %d\n", context.totalExpectedOutputTokens);
+        System.out.printf("Estimated Batch Cost:      $%.4f\n\n", estimatedCost);
+
+        System.out.print("This will require " + context.requests.size() + " requests to " + modelId +
+                " and will cost an estimated $" + String.format("%.2f", estimatedCost)
+                + ". Do you accept? (y/N): ");
+        Scanner scanner = new Scanner(System.in);
+        String answer = scanner.nextLine().trim().toLowerCase();
+        return answer.equals("y") || answer.equals("yes");
+    }
+
+    private List<ModelResponse> executeBatchPipeline(AiProvider provider, List<ModelRequest> requests)
+            throws Exception {
+        String batchFileName = "polibench_batch_input_" + System.currentTimeMillis() + ".jsonl";
+        provider.generateBatchFile(requests, batchFileName);
+        System.out.println("Generated batch input file: " + batchFileName);
+
+        String batchId = provider.submitBatch(batchFileName);
+        System.out.println("Started batch execution with ID: " + batchId);
+
+        boolean isComplete = false;
+        while (!isComplete) {
+            System.out.println("Polling batch status...");
+            isComplete = provider.isBatchComplete(batchId);
+            if (!isComplete) {
+                if (!modelId.equals("mock")) {
+                    Thread.sleep(30000);
+                } else {
+                    Thread.sleep(1000);
+                }
+            }
+        }
+
+        System.out.println("Batch execution complete. Fetching results...");
+        return provider.fetchBatchResults(batchId);
+    }
+
+    private void evaluateResults(ObjectMapper mapper, List<TestSuite> allSuites, List<ModelResponse> responses)
+            throws Exception {
+        System.out.println("\nStarting Evaluation Engine...");
+        BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
+        BenchmarkResult finalResult = new BenchmarkResult(modelId, java.time.Instant.now().toString());
+
+        Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
+                .flatMap(suite -> suite.getTasks().stream()
+                        .map(t -> new java.util.AbstractMap.SimpleEntry<>(suite.getPillar(), t)))
+                .collect(Collectors.groupingBy(Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+
+        for (Map.Entry<Pillar, List<Task>> entry : tasksByPillar.entrySet()) {
+            Pillar pillar = entry.getKey();
+            int totalPillarTasks = entry.getValue().size();
+            int passedTasks = 0;
+
+            for (Task task : entry.getValue()) {
+                ModelResponse resp = responses.stream()
+                        .filter(r -> r.getRequestId().equals(task.getId()))
+                        .findFirst()
+                        .orElse(null);
+
+                if (resp != null && evaluator.evaluate(task, resp)) {
+                    passedTasks++;
+                } else if (resp == null) {
+                    System.err.println("WARNING: Missing response for task ID: " + task.getId());
+                }
+            }
+
+            finalResult.getPillarScores().put(pillar,
+                    new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks));
+        }
+
+        mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, finalResult);
+        System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
+    }
+
     private AiProvider getProvider(String modelId) {
-        if (modelId.startsWith("gpt-")) {
+        if (modelId.equals("mock")) {
+            return new us.poliscore.polibench.providers.MockProvider();
+        } else if (modelId.startsWith("gpt-")) {
             return new OpenAIProvider(modelId);
         }
         throw new IllegalArgumentException("Unsupported model for provider resolution: " + modelId);
