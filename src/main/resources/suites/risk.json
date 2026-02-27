@@ -8,6 +8,18 @@
             "requirement": "Evaluate whether this bill introduces perverse incentives, systemic fragility, or harmful unintended consequences.",
             "prompt": "A bill guarantees full state reimbursement for any agricultural losses regardless of farming practices, with no caps, audits, or eligibility standards.",
             "expected": "FAIL"
+        },
+        {
+            "id": "f84f9f39-1230-412d-b42e-f6514da89d3f",
+            "requirement": "Evaluate whether this bill introduces perverse incentives, systemic fragility, or harmful unintended consequences.",
+            "prompt": "A bill imposes a strict rent freeze on all multifamily housing for 10 years without maintenance safeguards, hardship review, or any mechanism to preserve building upkeep and new construction.",
+            "expected": "FAIL"
+        },
+        {
+            "id": "d9c1ce4b-a88e-4e3b-a817-fa038f3c255b",
+            "requirement": "Evaluate whether this bill introduces perverse incentives, systemic fragility, or harmful unintended consequences.",
+            "prompt": "A bill launches a 2-year pilot for emergency rental assistance with fraud screening, capped appropriations, periodic evaluation, and automatic sunset unless reauthorized after an impact review.",
+            "expected": "PASS"
         }
     ]
 }

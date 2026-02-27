@@ -41,11 +41,11 @@ The default evaluator is intentionally simple: each task declares an expected ou
 
 ## Project Layout
 
-- [App.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/App.java): CLI entrypoint and benchmark pipeline
-- [OpenAIProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java): OpenAI Batch integration
-- [MockProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/MockProvider.java): offline/mock execution path
-- [BenchmarkEvaluator.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/eval/BenchmarkEvaluator.java): response grading
-- [src/main/resources/suites](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/resources/suites): bundled benchmark suites
+- [App.java](src/main/java/us/poliscore/polibench/App.java): CLI entrypoint and benchmark pipeline
+- [OpenAIProvider.java](src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java): OpenAI Batch integration
+- [MockProvider.java](src/main/java/us/poliscore/polibench/providers/MockProvider.java): offline/mock execution path
+- [BenchmarkEvaluator.java](src/main/java/us/poliscore/polibench/eval/BenchmarkEvaluator.java): response grading
+- [src/main/resources/suites](src/main/resources/suites): bundled benchmark suites
 
 ## Build
 
@@ -88,6 +88,12 @@ Run the bundled benchmark in mock mode:
 java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes
 ```
 
+This writes to:
+
+```text
+results/polibench_results.json
+```
+
 Write the results to a custom location:
 
 ```bash
@@ -122,7 +128,7 @@ java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5.1
 
 PoliBench automatically uses the OpenAI provider when `--model` starts with `gpt-`.
 
-The OpenAI integration is implemented in [OpenAIProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java), and configuration is loaded automatically by [ConfigLoader.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/ConfigLoader.java).
+The OpenAI integration is implemented in [OpenAIProvider.java](src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java), and configuration is loaded automatically by [ConfigLoader.java](src/main/java/us/poliscore/polibench/providers/ConfigLoader.java).
 
 Create a file named `polibench.properties` in the project root with:
 

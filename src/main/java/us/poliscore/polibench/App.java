@@ -47,7 +47,7 @@ public class App implements Runnable {
     private File suitesDir;
 
     @Option(names = { "-o",
-            "--output" }, description = "Output path for the final polibench_results.json", defaultValue = "polibench_results.json")
+            "--output" }, description = "Output path for the final polibench_results.json", defaultValue = "results/polibench_results.json")
     private File outputFile;
 
     @Option(names = {
@@ -157,11 +157,12 @@ public class App implements Runnable {
 
     private List<ModelResponse> executeBatchPipeline(AiProvider provider, List<ModelRequest> requests)
             throws Exception {
-        String batchFileName = "polibench_batch_input_" + System.currentTimeMillis() + ".jsonl";
-        provider.generateBatchFile(requests, batchFileName);
-        System.out.println("Generated batch input file: " + batchFileName);
+        File batchFile = new File("results", "polibench_batch_input_" + System.currentTimeMillis() + ".jsonl");
+        ensureParentDirectoryExists(batchFile);
+        provider.generateBatchFile(requests, batchFile.getPath());
+        System.out.println("Generated batch input file: " + batchFile.getAbsolutePath());
 
-        String batchId = provider.submitBatch(batchFileName);
+        String batchId = provider.submitBatch(batchFile.getPath());
         System.out.println("Started batch execution with ID: " + batchId);
 
         boolean isComplete = false;
@@ -215,6 +216,7 @@ public class App implements Runnable {
                     new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks));
         }
 
+        ensureParentDirectoryExists(outputFile);
         mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, finalResult);
         System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
     }
@@ -249,5 +251,12 @@ public class App implements Runnable {
             }
         }
         return suites;
+    }
+
+    private void ensureParentDirectoryExists(File file) {
+        File parentDir = file.getAbsoluteFile().getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs();
+        }
     }
 }

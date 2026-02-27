@@ -8,6 +8,18 @@
             "requirement": "Evaluate whether this bill is supported by empirical research and data.",
             "prompt": "The bill mandates that all schools replace mathematics with astrology, citing a survey of 10 people on Twitter who felt the stars aligned better with student learning styles.",
             "expected": "FAIL"
+        },
+        {
+            "id": "2f93f16f-43c8-48e0-a2bd-a2be4d9138d0",
+            "requirement": "Evaluate whether this bill is supported by empirical research and data.",
+            "prompt": "A bill requires every state workforce program to teach cursive instead of keyboarding because a viral video claimed cursive users get better jobs, without citing any broader labor-market evidence.",
+            "expected": "FAIL"
+        },
+        {
+            "id": "a03f8f5d-af18-4a63-8b6a-7ee85e4f8988",
+            "requirement": "Evaluate whether this bill is supported by empirical research and data.",
+            "prompt": "A bill funds text-message appointment reminders for childhood vaccination visits, citing randomized trials and multi-state pilot programs showing improved attendance at preventive care appointments.",
+            "expected": "PASS"
         }
     ]
 }
