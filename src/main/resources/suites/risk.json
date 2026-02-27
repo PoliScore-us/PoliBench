@@ -1,0 +1,13 @@
+{
+    "name": "Risk Suite",
+    "pillar": "Risk",
+    "description": "Tests whether a model can identify unintended consequences, fragility, and perverse incentives.",
+    "tasks": [
+        {
+            "id": "c9160c38-0aa4-4101-8d4d-16f00d503178",
+            "requirement": "Evaluate whether this bill introduces perverse incentives, systemic fragility, or harmful unintended consequences.",
+            "prompt": "A bill guarantees full state reimbursement for any agricultural losses regardless of farming practices, with no caps, audits, or eligibility standards.",
+            "expected": "FAIL"
+        }
+    ]
+}

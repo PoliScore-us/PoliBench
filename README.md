@@ -1,68 +1,201 @@
 # PoliBench
 
----
+PoliBench is a Java CLI benchmark for evaluating whether an AI model can reason about legislation using the seven structural pillars defined by the PoliScore framework.
 
-PoliScore and PoliBench are **🚨WORKS IN PROGRESS🚨**. Much of what you may read around here should be interpreted as **ASPIRATIONAL WORK**, not necessarily representative of what is published on poliscore.us.
+It packages small benchmark suites, sends them through a provider-specific batch pipeline, and grades the returned responses into a `polibench_results.json` file with per-pillar scores.
 
----
+## What It Supports
 
-PoliBench is a lightweight benchmark suite for evaluating whether AI systems can reason accurately and responsibly about public policy. It is the companion project to **PoliScore**, a framework for assessing the structural quality of legislation using clear, non-partisan principles.
+The bundled benchmark currently covers all seven PoliScore pillars:
 
-PoliBench provides small, focused test cases that check whether a model can:
+- `Precision`
+- `Evidence`
+- `Feasibility`
+- `Budget`
+- `Fairness`
+- `Governance`
+- `Risk`
 
-- identify policy problems and causal mechanisms
-- evaluate the strength of evidence
-- assess implementation feasibility
-- reason about economic sustainability
-- identify distributional impacts
-- detect governance risks
-- anticipate unintended consequences
+Out of the box, PoliBench can:
 
-These correspond directly to the **seven pillars** of the PoliScore Framework.
+- load the bundled benchmark suites from `src/main/resources/suites/`
+- load alternate suite JSON files from a directory you provide with `--suites`
+- generate batch requests for supported models
+- submit and poll OpenAI Batch jobs
+- parse an existing OpenAI batch output file with `--results-only`
+- emit a machine-readable results file with per-pillar pass rates
+- estimate batch cost before execution
+- run fully offline in mock mode for local testing
 
----
+## How It Works
 
-## Purpose
+Each suite contains one or more benchmark tasks. For each task, PoliBench:
 
-PoliBench is intended for:
+1. Builds a system prompt and user prompt.
+2. Generates a batch request.
+3. Sends the batch to the configured provider, or reads an existing result file.
+4. Grades the model response by checking whether it concludes with either `<PASS>` or `<FAIL>`.
+5. Aggregates results into pillar scores.
 
-- developers evaluating AI policy-reasoning abilities
-- researchers studying policy analysis and governance
-- anyone comparing how different models reason about legislation
+The default evaluator is intentionally simple: each task declares an expected outcome, and the model must end with the matching token.
 
-It is not designed to measure political ideology or take normative positions.  
-It measures **reasoning quality**, not political alignment.
+## Project Layout
 
----
+- [App.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/App.java): CLI entrypoint and benchmark pipeline
+- [OpenAIProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java): OpenAI Batch integration
+- [MockProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/MockProvider.java): offline/mock execution path
+- [BenchmarkEvaluator.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/eval/BenchmarkEvaluator.java): response grading
+- [src/main/resources/suites](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/resources/suites): bundled benchmark suites
 
-## Usage
+## Build
 
-The benchmark consists of small, self-contained example tasks.  
-Each task includes:
+Compile the project:
 
-- a short policy scenario or bill snippet
-- one or more questions
-- an expected answer or evaluation criteria
+```bash
+mvn compile
+```
 
-You can use these tasks to:
+Build the shaded jar:
 
-- test a model interactively
-- compare outputs across models
-- evaluate consistency and reasoning depth
+```bash
+mvn package
+```
 
-More formal tooling may be added in future versions.
+The packaged CLI jar is written to `target/`.
 
----
+## CLI Usage
 
-## Project Status
+The CLI currently exposes:
 
-PoliBench is in an early, open-development phase.  
-New tasks and suites will be added gradually as the PoliScore ecosystem evolves.
+```text
+Usage: polibench [-hVy] [-m=<modelId>] [-o=<outputFile>]
+                 [--results-only=<existingBatchResult>] [--suites=<suitesDir>]
+```
 
----
+Options:
+
+- `--model` / `-m`: model identifier, currently `mock`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4o`, or `gpt-4o-mini`
+- `--output` / `-o`: output path for the final `polibench_results.json`
+- `--suites`: directory of suite JSON files; if omitted, the bundled suites are used
+- `--results-only`: skip execution and grade an existing batch output file
+- `--yes` / `-y`: auto-accept the estimated execution cost
+
+## Example Commands
+
+Run the bundled benchmark in mock mode:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes
+```
+
+Write the results to a custom location:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes --output /tmp/polibench_results.json
+```
+
+Run the benchmark against a custom suites directory:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes --suites ./my-suites
+```
+
+Grade a previously downloaded OpenAI batch output file without submitting anything:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini --results-only ./batch-output.jsonl --output ./polibench_results.json
+```
+
+Run a real OpenAI batch job with automatic cost acceptance:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini --yes
+```
+
+Run a real OpenAI batch job and review the estimated cost interactively first:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5.1
+```
+
+## OpenAI Setup
+
+PoliBench automatically uses the OpenAI provider when `--model` starts with `gpt-`.
+
+The OpenAI integration is implemented in [OpenAIProvider.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java), and configuration is loaded automatically by [ConfigLoader.java](/Users/rrowlands/dev/projects/pissedoffcitizen/PoliBench/src/main/java/us/poliscore/polibench/providers/ConfigLoader.java).
+
+Create a file named `polibench.properties` in the project root with:
+
+```properties
+openai.api.key=YOUR_OPENAI_API_KEY
+```
+
+Once that file exists, PoliBench will automatically read it from the current working directory when you run the CLI. If there is no local file, it also attempts to load `polibench.properties` from the classpath.
+
+With that in place, this is enough to run against OpenAI:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini
+```
+
+What happens during an OpenAI run:
+
+1. PoliBench loads the benchmark suites.
+2. It estimates token usage and batch cost.
+3. It prompts you to continue unless you passed `--yes`.
+4. It writes a JSONL batch input file locally.
+5. It uploads that file to OpenAI's `/v1/files`.
+6. It creates a batch job against `/v1/chat/completions`.
+7. It polls until the batch completes.
+8. It downloads the output file, parses it, and writes `polibench_results.json`.
+
+If `polibench.properties` is missing or `openai.api.key` is unset, OpenAI execution will fail with a configuration error when submission starts.
+
+## Suite Format
+
+Each suite file is JSON with this shape:
+
+```json
+{
+  "name": "Fairness Suite",
+  "pillar": "Fairness",
+  "description": "Tests distributional reasoning.",
+  "tasks": [
+    {
+      "id": "optional-stable-id",
+      "requirement": "Evaluate whether the policy distributes benefits and burdens fairly.",
+      "prompt": "A bill ...",
+      "expected": "FAIL"
+    }
+  ]
+}
+```
+
+Notes:
+
+- `pillar` must match one of the enum values used by the benchmark model layer
+- `expected` must be `PASS` or `FAIL`
+- stable `id` values are useful when comparing runs or parsing existing results
+
+## Output
+
+The result file is a JSON object keyed by pillar, with:
+
+- `totalTasks`
+- `passedTasks`
+- `scorePercentage`
+
+This makes it suitable for downstream ingestion by other PoliScore tooling.
+
+## Current Limits
+
+The current implementation is intentionally narrow:
+
+- OpenAI is the only real provider implemented today
+- supported live OpenAI models are currently `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4o`, and `gpt-4o-mini`
+- the evaluator checks explicit `<PASS>` and `<FAIL>` tokens rather than deeper semantic grading
+- bundled suites are still small and should be treated as an early benchmark set, not a finished benchmark corpus
 
 ## License
 
 MIT License.
-
-

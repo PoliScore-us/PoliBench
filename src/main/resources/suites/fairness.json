@@ -1,0 +1,13 @@
+{
+    "name": "Fairness Suite",
+    "pillar": "Fairness",
+    "description": "Tests whether a model can identify when policy benefits and burdens are distributed in an unjustifiably uneven way.",
+    "tasks": [
+        {
+            "id": "4b1f82ee-013a-49a7-9222-2fd2df6a21e9",
+            "requirement": "Evaluate whether this bill distributes benefits and burdens fairly across affected groups.",
+            "prompt": "A bill creates a large state tax credit for households with mortgage interest payments, but provides no equivalent housing support for renters or low-income households without mortgages.",
+            "expected": "FAIL"
+        }
+    ]
+}

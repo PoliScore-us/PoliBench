@@ -3,10 +3,17 @@ package us.poliscore.polibench.providers;
 import us.poliscore.polibench.models.ModelRequest;
 import us.poliscore.polibench.models.ModelResponse;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MockProvider implements AiProvider {
+    private final List<String> lastRequestIds = new ArrayList<>();
+
     @Override
     public String getModelId() {
         return "mock";
@@ -42,6 +49,7 @@ public class MockProvider implements AiProvider {
 
     @Override
     public String submitBatch(String batchFileOutputPath) throws Exception {
+        cacheRequestIds(batchFileOutputPath);
         System.out.println("[MockProvider] Simulating batch submission for " + batchFileOutputPath);
         return "mock_batch_" + System.currentTimeMillis();
     }
@@ -57,16 +65,12 @@ public class MockProvider implements AiProvider {
     public List<ModelResponse> fetchBatchResults(String batchId) throws Exception {
         System.out.println("[MockProvider] Simulating result fetching for " + batchId);
         List<ModelResponse> responses = new ArrayList<>();
-        // In a real scenario we'd parse the ids, but here we just return a few fake
-        // ones
-        // derived from a static known set or just relying on App generating random ones
-        // that will fail evaluation.
-        responses.add(new ModelResponse("5990a88d-dbc7-4c9d-a20b-d3e01ad6162a",
-                "This fails to identify cause because color does not affect congestion. <FAIL>", 10, 10));
-        responses.add(new ModelResponse("9e42b08d-104d-486d-beb1-ea7a34d09c03",
-                "This lacks empirical support and is unscientific due to insufficient sample size. <FAIL>", 10, 10));
-        responses.add(new ModelResponse("ce675c4e-db7d-4c7d-bd5c-7eb2608a4af9",
-                "This relates to workforce shortage and infrastructure constraints. <FAIL>", 10, 10));
+        for (String requestId : lastRequestIds) {
+            responses.add(new ModelResponse(requestId,
+                    "Mock analysis detected a structural flaw in the policy design. <FAIL>",
+                    10,
+                    10));
+        }
         return responses;
     }
 
@@ -79,5 +83,21 @@ public class MockProvider implements AiProvider {
     @Override
     public double calculateEstimatedCost(int promptTokens, int expectedCompletionTokens) {
         return 0.0;
+    }
+
+    private void cacheRequestIds(String batchFileOutputPath) throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        lastRequestIds.clear();
+
+        try (BufferedReader reader = new BufferedReader(new FileReader(batchFileOutputPath))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                JsonNode node = mapper.readTree(line);
+                JsonNode idNode = node.get("custom_id");
+                if (idNode != null && !idNode.asText().isBlank()) {
+                    lastRequestIds.add(idNode.asText());
+                }
+            }
+        }
     }
 }

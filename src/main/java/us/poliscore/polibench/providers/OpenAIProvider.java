@@ -22,6 +22,23 @@ public class OpenAIProvider implements AiProvider {
         this.httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
 
         switch (modelId) {
+            case "gpt-5.2":
+                this.inputCostPerMillion = 1.75;
+                this.outputCostPerMillion = 14.00;
+                break;
+            case "gpt-5.1":
+            case "gpt-5":
+                this.inputCostPerMillion = 1.25;
+                this.outputCostPerMillion = 10.00;
+                break;
+            case "gpt-5-mini":
+                this.inputCostPerMillion = 0.25;
+                this.outputCostPerMillion = 2.00;
+                break;
+            case "gpt-5-nano":
+                this.inputCostPerMillion = 0.05;
+                this.outputCostPerMillion = 0.40;
+                break;
             case "gpt-4o":
                 this.inputCostPerMillion = 5.00;
                 this.outputCostPerMillion = 15.00;
@@ -177,7 +194,7 @@ public class OpenAIProvider implements AiProvider {
     }
 
     private String createBatchJob(String inputFileId) throws Exception {
-        java.util.Map<String, String> bodyMap = new java.util.HashMap<>();
+        java.util.Map<String, Object> bodyMap = new java.util.HashMap<>();
         bodyMap.put("input_file_id", inputFileId);
         bodyMap.put("endpoint", "/v1/chat/completions");
         bodyMap.put("completion_window", "24h");

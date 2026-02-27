@@ -28,9 +28,18 @@ import java.util.stream.Collectors;
 
 @Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against an AI model via batch API.")
 public class App implements Runnable {
+    private static final String[] DEFAULT_SUITE_FILES = {
+            "precision.json",
+            "evidence.json",
+            "feasibility.json",
+            "budget.json",
+            "fairness.json",
+            "governance.json",
+            "risk.json"
+    };
 
     @Option(names = { "-m",
-            "--model" }, description = "The model to evaluate (e.g., gpt-4o, gpt-4o-mini)", defaultValue = "gpt-4o-mini")
+            "--model" }, description = "The model to evaluate (e.g., gpt-5-mini, gpt-4o-mini, mock)", defaultValue = "gpt-5-mini")
     private String modelId;
 
     @Option(names = {
@@ -230,11 +239,12 @@ public class App implements Runnable {
             }
         } else {
             // Load defaults from classpath
-            String[] defaultSuites = { "precision.json", "evidence.json", "feasibility.json" };
-            for (String sd : defaultSuites) {
+            for (String sd : DEFAULT_SUITE_FILES) {
                 InputStream is = getClass().getResourceAsStream("/suites/" + sd);
                 if (is != null) {
                     suites.add(mapper.readValue(is, TestSuite.class));
+                } else {
+                    System.err.println("WARNING: Missing bundled suite resource: " + sd);
                 }
             }
         }

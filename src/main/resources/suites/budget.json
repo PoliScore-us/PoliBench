@@ -1,0 +1,13 @@
+{
+    "name": "Budget Suite",
+    "pillar": "Budget",
+    "description": "Tests how well an AI can identify fiscal irresponsibility or long-term unsustainability.",
+    "tasks": [
+        {
+            "id": "11b712ab-9ce2-4df3-a1cd-b2354a86f1e1",
+            "requirement": "Evaluate whether this bill uses resources responsibly, minimizes waste, and avoids unsustainable long-term obligations.",
+            "prompt": "A bill mandates that every household in the state receives a new luxury car every 5 years funded entirely by state deficit spending.",
+            "expected": "FAIL"
+        }
+    ]
+}
