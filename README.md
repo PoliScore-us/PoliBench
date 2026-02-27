@@ -1,5 +1,11 @@
 # PoliBench
 
+---
+
+PoliScore and PoliBench are **🚨WORKS IN PROGRESS🚨**. Much of what you may read around here should be interpreted as **ASPIRATIONAL WORK**, not necessarily representative of what is published on poliscore.us.
+
+---
+
 PoliBench is a lightweight benchmark suite for evaluating whether AI systems can reason accurately and responsibly about public policy. It is the companion project to **PoliScore**, a framework for assessing the structural quality of legislation using clear, non-partisan principles.
 
 PoliBench provides small, focused test cases that check whether a model can:
