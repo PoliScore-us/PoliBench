@@ -198,6 +198,7 @@ public class App implements Runnable {
             Pillar pillar = entry.getKey();
             int totalPillarTasks = entry.getValue().size();
             int passedTasks = 0;
+            List<BenchmarkResult.TaskResult> taskResults = new ArrayList<>();
 
             for (Task task : entry.getValue()) {
                 ModelResponse resp = responses.stream()
@@ -205,15 +206,30 @@ public class App implements Runnable {
                         .findFirst()
                         .orElse(null);
 
+                String systemPrompt = "You are an expert policy analyst and evaluator acting on behalf of a non-partisan oversight committee. "
+                        + task.getRequirement()
+                        + " Conclude your analysis by writing either '<PASS>' or '<FAIL>'.";
+
+                boolean passed = false;
                 if (resp != null && evaluator.evaluate(task, resp)) {
                     passedTasks++;
+                    passed = true;
                 } else if (resp == null) {
                     System.err.println("WARNING: Missing response for task ID: " + task.getId());
                 }
+
+                taskResults.add(new BenchmarkResult.TaskResult(
+                        task.getId(),
+                        task.getRequirement(),
+                        task.getPrompt(),
+                        systemPrompt,
+                        task.getExpected(),
+                        resp != null ? resp.getContent() : null,
+                        passed));
             }
 
             finalResult.getPillarScores().put(pillar,
-                    new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks));
+                    new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks, taskResults));
         }
 
         ensureParentDirectoryExists(outputFile);
