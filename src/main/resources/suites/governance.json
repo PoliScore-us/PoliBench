@@ -4,21 +4,15 @@
     "description": "Tests whether a model can detect weak oversight, concentrated discretion, and accountability failures.",
     "tasks": [
         {
-            "id": "2899e144-e1f5-4cd7-bf5c-03009cd4727c",
-            "requirement": "Evaluate whether this bill preserves transparency, accountability, and resilience against abuse.",
-            "prompt": "A bill grants an agency director unilateral authority to allocate public funds as they see fit, with no reporting requirements, no appeals process, and no independent oversight.",
+            "billText": "A bill grants an agency director unilateral authority to allocate public funds as they see fit, with no reporting requirements, no appeals process, and no independent oversight.",
             "expected": "FAIL"
         },
         {
-            "id": "5cb6a6fe-9de8-4580-84a8-b62153b11c03",
-            "requirement": "Evaluate whether this bill preserves transparency, accountability, and resilience against abuse.",
-            "prompt": "A bill lets the governor's office issue confidential exemptions from procurement law without publishing the justification, duration, or affected contractors.",
+            "billText": "A bill lets the governor's office issue confidential exemptions from procurement law without publishing the justification, duration, or affected contractors.",
             "expected": "FAIL"
         },
         {
-            "id": "31531f67-0489-413a-8858-74d85717fa8e",
-            "requirement": "Evaluate whether this bill preserves transparency, accountability, and resilience against abuse.",
-            "prompt": "A bill creates a competitive grant program with published eligibility criteria, conflict-of-interest disclosures, quarterly public reporting, inspector-general audits, and an appeals process for denied applicants.",
+            "billText": "A bill creates a competitive grant program with published eligibility criteria, conflict-of-interest disclosures, quarterly public reporting, inspector-general audits, and an appeals process for denied applicants.",
             "expected": "PASS"
         }
     ]

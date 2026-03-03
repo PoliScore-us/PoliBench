@@ -4,21 +4,15 @@
     "description": "Tests how well an AI can identify fiscal irresponsibility or long-term unsustainability.",
     "tasks": [
         {
-            "id": "11b712ab-9ce2-4df3-a1cd-b2354a86f1e1",
-            "requirement": "Evaluate whether this bill uses resources responsibly, minimizes waste, and avoids unsustainable long-term obligations.",
-            "prompt": "A bill mandates that every household in the state receives a new luxury car every 5 years funded entirely by state deficit spending.",
+            "billText": "A bill mandates that every household in the state receives a new luxury car every 5 years funded entirely by state deficit spending.",
             "expected": "FAIL"
         },
         {
-            "id": "c169922c-6424-4ab3-b8bb-7d3e3f44991b",
-            "requirement": "Evaluate whether this bill uses resources responsibly, minimizes waste, and avoids unsustainable long-term obligations.",
-            "prompt": "A bill creates a permanent subsidy paying 100% of electricity costs for all households, with no usage cap and no dedicated revenue source beyond assumed future economic growth.",
+            "billText": "A bill creates a permanent subsidy paying 100% of electricity costs for all households, with no usage cap and no dedicated revenue source beyond assumed future economic growth.",
             "expected": "FAIL"
         },
         {
-            "id": "938155e0-9f5f-4f60-b8e9-537cb77755f2",
-            "requirement": "Evaluate whether this bill uses resources responsibly, minimizes waste, and avoids unsustainable long-term obligations.",
-            "prompt": "A bill funds bridge repairs through a time-limited infrastructure bond, requires competitive bidding, and publishes annual project audits before additional appropriations can be made.",
+            "billText": "A bill funds bridge repairs through a time-limited infrastructure bond, requires competitive bidding, and publishes annual project audits before additional appropriations can be made.",
             "expected": "PASS"
         }
     ]

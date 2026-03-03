@@ -3,7 +3,7 @@ package us.poliscore.polibench;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-
+import us.poliscore.model.BillPrompt;
 import us.poliscore.polibench.eval.BenchmarkEvaluator;
 import us.poliscore.polibench.eval.BenchmarkResult;
 import us.poliscore.polibench.eval.CostEstimator;
@@ -115,19 +115,14 @@ public class App implements Runnable {
         for (TestSuite suite : allSuites) {
             System.out.println("Loaded Suite: " + suite.getName() + " (" + suite.getTasks().size() + " tasks)");
             for (Task task : suite.getTasks()) {
-                String reqId = (task.getId() != null && !task.getId().isEmpty()) ? task.getId()
-                        : UUID.randomUUID().toString();
-                task.setId(reqId);
+                String systemPrompt = BillPrompt.getPromptForBill(false, false);
+                String billText = task.getBillText();
 
-                String systemPrompt = "You are an expert policy analyst and evaluator acting on behalf of a non-partisan oversight committee. "
-                        + task.getRequirement()
-                        + " Conclude your analysis by writing either '<PASS>' or '<FAIL>'.";
-
-                int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + task.getPrompt());
+                int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + billText);
                 context.totalInputTokens += promptTokens;
                 context.totalExpectedOutputTokens += 150;
 
-                context.requests.add(new ModelRequest(reqId, systemPrompt, task.getPrompt()));
+                context.requests.add(new ModelRequest(UUID.randomUUID().toString(), systemPrompt, billText));
             }
         }
         return context;
@@ -187,6 +182,7 @@ public class App implements Runnable {
         System.out.println("\nStarting Evaluation Engine...");
         BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
         BenchmarkResult finalResult = new BenchmarkResult(modelId, java.time.Instant.now().toString());
+        finalResult.setSystemPrompt(BillPrompt.getPromptForBill(false, false));
 
         Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
                 .flatMap(suite -> suite.getTasks().stream()
@@ -206,9 +202,7 @@ public class App implements Runnable {
                         .findFirst()
                         .orElse(null);
 
-                String systemPrompt = "You are an expert policy analyst and evaluator acting on behalf of a non-partisan oversight committee. "
-                        + task.getRequirement()
-                        + " Conclude your analysis by writing either '<PASS>' or '<FAIL>'.";
+                String billText = task.getBillText();
 
                 boolean passed = false;
                 if (resp != null && evaluator.evaluate(task, resp)) {
@@ -219,10 +213,8 @@ public class App implements Runnable {
                 }
 
                 taskResults.add(new BenchmarkResult.TaskResult(
-                        task.getId(),
-                        task.getRequirement(),
-                        task.getPrompt(),
-                        systemPrompt,
+                		task.getId(),
+                		billText,
                         task.getExpected(),
                         resp != null ? resp.getContent() : null,
                         passed));

@@ -4,21 +4,15 @@
     "description": "Tests ability to recognize clear implementation challenges.",
     "tasks": [
         {
-            "id": "ce675c4e-db7d-4c7d-bd5c-7eb2608a4af9",
-            "requirement": "Identify the primary implementation challenge.",
-            "prompt": "A bill requires every rural county (population < 5,000) to operate a full-service emergency hospital within one year.",
+            "billText": "A bill requires every rural county (population < 5,000) to operate a full-service emergency hospital within one year.",
             "expected": "FAIL"
         },
         {
-            "id": "54513de2-10d2-40fc-af5f-2622a2d9004e",
-            "requirement": "Evaluate whether existing institutions can realistically execute this bill within its stated constraints.",
-            "prompt": "A bill requires every public school building in the state to install geothermal heating within 9 months, regardless of building age, contractor availability, or local grid conditions.",
+            "billText": "A bill requires every public school building in the state to install geothermal heating within 9 months, regardless of building age, contractor availability, or local grid conditions.",
             "expected": "FAIL"
         },
         {
-            "id": "b130ff42-c9da-443a-bba2-1f33254d51a0",
-            "requirement": "Evaluate whether existing institutions can realistically execute this bill within its stated constraints.",
-            "prompt": "A bill gives state agencies 4 years to phase in accessible digital forms, funds shared procurement support, and prioritizes the highest-volume public services first.",
+            "billText": "A bill gives state agencies 4 years to phase in accessible digital forms, funds shared procurement support, and prioritizes the highest-volume public services first.",
             "expected": "PASS"
         }
     ]

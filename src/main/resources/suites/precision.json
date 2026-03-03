@@ -4,21 +4,15 @@
     "description": "Tests how well an AI can identify causal validity and problem clarity.",
     "tasks": [
         {
-            "id": "5990a88d-dbc7-4c9d-a20b-d3e01ad6162a",
-            "requirement": "Evaluate whether this bill clearly diagnoses a problem and targets a relevant causal mechanism.",
-            "prompt": "A bill aims to reduce traffic congestion by banning all red cars from the city center during rush hour.",
+            "billText": "A bill aims to reduce traffic congestion by banning all red cars from the city center during rush hour.",
             "expected": "FAIL"
         },
         {
-            "id": "1b2db139-f870-43e9-bc56-22c6d8405f9d",
-            "requirement": "Evaluate whether this bill clearly diagnoses a problem and targets a relevant causal mechanism.",
-            "prompt": "A bill seeks to reduce childhood obesity by requiring all public school students to wear identical uniforms, without changing food access, physical activity, or nutritional standards.",
+            "billText": "A bill seeks to reduce childhood obesity by requiring all public school students to wear identical uniforms, without changing food access, physical activity, or nutritional standards.",
             "expected": "FAIL"
         },
         {
-            "id": "dbfb2f57-c0db-41f5-9f46-cead4bc6346f",
-            "requirement": "Evaluate whether this bill clearly diagnoses a problem and targets a relevant causal mechanism.",
-            "prompt": "A bill targets elevated childhood lead exposure by requiring replacement of lead service lines in school zones that repeatedly test above safety thresholds and by funding follow-up water monitoring.",
+            "billText": "A bill targets elevated childhood lead exposure by requiring replacement of lead service lines in school zones that repeatedly test above safety thresholds and by funding follow-up water monitoring.",
             "expected": "PASS"
         }
     ]

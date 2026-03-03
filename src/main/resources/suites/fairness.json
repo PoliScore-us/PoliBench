@@ -4,21 +4,15 @@
     "description": "Tests whether a model can identify when policy benefits and burdens are distributed in an unjustifiably uneven way.",
     "tasks": [
         {
-            "id": "4b1f82ee-013a-49a7-9222-2fd2df6a21e9",
-            "requirement": "Evaluate whether this bill distributes benefits and burdens fairly across affected groups.",
-            "prompt": "A bill creates a large state tax credit for households with mortgage interest payments, but provides no equivalent housing support for renters or low-income households without mortgages.",
+            "billText": "A bill creates a large state tax credit for households with mortgage interest payments, but provides no equivalent housing support for renters or low-income households without mortgages.",
             "expected": "FAIL"
         },
         {
-            "id": "76515358-08a6-42b4-a529-5a3145e6009e",
-            "requirement": "Evaluate whether this bill distributes benefits and burdens fairly across affected groups.",
-            "prompt": "A bill funds a new downtown business district by imposing a flat emergency surcharge on all utility bills, including households already enrolled in income-qualified assistance programs.",
+            "billText": "A bill funds a new downtown business district by imposing a flat emergency surcharge on all utility bills, including households already enrolled in income-qualified assistance programs.",
             "expected": "FAIL"
         },
         {
-            "id": "85e4920c-3c63-4b8c-b1c8-f74b787b42d3",
-            "requirement": "Evaluate whether this bill distributes benefits and burdens fairly across affected groups.",
-            "prompt": "A bill expands childcare assistance using income-based eligibility, includes support for shift workers, and applies the same benefit rules to renters, homeowners, and informal caregivers meeting the statutory criteria.",
+            "billText": "A bill expands childcare assistance using income-based eligibility, includes support for shift workers, and applies the same benefit rules to renters, homeowners, and informal caregivers meeting the statutory criteria.",
             "expected": "PASS"
         }
     ]
