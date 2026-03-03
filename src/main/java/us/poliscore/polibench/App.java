@@ -1,9 +1,20 @@
 package us.poliscore.polibench;
 
+import java.io.File;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import us.poliscore.model.BillPrompt;
+import us.poliscore.model.bill.BillPrompt;
 import us.poliscore.polibench.eval.BenchmarkEvaluator;
 import us.poliscore.polibench.eval.BenchmarkResult;
 import us.poliscore.polibench.eval.CostEstimator;
@@ -14,17 +25,6 @@ import us.poliscore.polibench.models.Task;
 import us.poliscore.polibench.models.TestSuite;
 import us.poliscore.polibench.providers.AiProvider;
 import us.poliscore.polibench.providers.OpenRouterProvider;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.File;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against an AI model via batch API.")
 public class App implements Runnable {
@@ -115,6 +115,7 @@ public class App implements Runnable {
         for (TestSuite suite : allSuites) {
             System.out.println("Loaded Suite: " + suite.getName() + " (" + suite.getTasks().size() + " tasks)");
             for (Task task : suite.getTasks()) {
+                task.setPillar(suite.getPillar());
                 String requestId = (task.getId() == null || task.getId().isBlank())
                         ? UUID.randomUUID().toString()
                         : task.getId();

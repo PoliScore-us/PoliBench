@@ -1,6 +1,12 @@
 package us.poliscore.polibench.eval;
 
+import us.poliscore.model.AIInterpretationMetadata;
+import us.poliscore.model.bill.Bill;
+import us.poliscore.model.bill.BillInterpretation;
+import us.poliscore.model.bill.BillInterpretationParser;
+import us.poliscore.model.bill.StructuralAnalysis;
 import us.poliscore.polibench.models.ModelResponse;
+import us.poliscore.polibench.models.Pillar;
 import us.poliscore.polibench.models.Task;
 
 public class BenchmarkEvaluator {
@@ -17,35 +23,59 @@ public class BenchmarkEvaluator {
             return false;
         }
 
+        if (task.getPillar() == null) {
+            throw new IllegalStateException("Task [" + task.getId() + "] is missing its pillar assignment.");
+        }
+
         String expectedOutcome = task.getExpected().trim().toUpperCase();
         if (!expectedOutcome.equals("PASS") && !expectedOutcome.equals("FAIL")) {
             throw new IllegalStateException("Task [" + task.getId() + "] has invalid expected outcome: "
                     + expectedOutcome + ". Must be 'PASS' or 'FAIL'.");
         }
 
-        String actual = response.getContent().toUpperCase();
-
-        // Ensure the model actually provided a conclusive token
-        boolean predictedPass = actual.contains("<PASS>");
-        boolean predictedFail = actual.contains("<FAIL>");
-
-        if (predictedPass && predictedFail) {
-            System.err.println("WARNING: Task [" + task.getId()
-                    + "] yielded an ambiguous response containing both <PASS> and <FAIL>.");
+        BillInterpretation interpretation;
+        try {
+            interpretation = parseInterpretation(task, response);
+        } catch (Exception e) {
+            System.err.println("WARNING: Task [" + task.getId() + "] response could not be parsed by BillInterpretationParser: "
+                    + e.getMessage());
             return false;
         }
 
-        if (!predictedPass && !predictedFail) {
+        Boolean actualPass = interpretation.getStructuralAnalysisPassFail().get(toStructuralAnalysis(task.getPillar()));
+        if (actualPass == null) {
             System.err.println(
-                    "WARNING: Task [" + task.getId() + "] response missing a conclusive <PASS> or <FAIL> token.");
+                    "WARNING: Task [" + task.getId() + "] parsed response was missing structural analysis output for pillar "
+                            + task.getPillar().getValue() + ".");
             return false;
         }
 
-        if (expectedOutcome.equals("PASS") && predictedPass)
-            return true;
-        if (expectedOutcome.equals("FAIL") && predictedFail)
-            return true;
+        return expectedOutcome.equals("PASS") == actualPass;
+    }
 
-        return false;
+    private BillInterpretation parseInterpretation(Task task, ModelResponse response) {
+        Bill bill = new Bill();
+        bill.setId("BIL/mock/" + task.getId());
+        bill.setName("Mock Bill");
+        bill.setOfficialUrl("https://example.invalid/bills/" + task.getId());
+
+        BillInterpretation interpretation = new BillInterpretation();
+        interpretation.setBill(bill);
+        interpretation.setMetadata(AIInterpretationMetadata.construct("polibench", "benchmark-evaluator", 0, false));
+
+        new BillInterpretationParser(bill, interpretation, null).parse(response.getContent(), null);
+        return interpretation;
+    }
+
+    private StructuralAnalysis toStructuralAnalysis(Pillar pillar) {
+        return switch (pillar) {
+            case PRECISION -> StructuralAnalysis.PRECISION;
+            case EVIDENCE -> StructuralAnalysis.EVIDENCE;
+            case FEASIBILITY -> StructuralAnalysis.FEASIBILITY;
+            case BUDGET -> StructuralAnalysis.BUDGET;
+            case FAIRNESS -> StructuralAnalysis.FAIRNESS;
+            case GOVERNANCE -> StructuralAnalysis.GOVERNANCE;
+            case RISK -> StructuralAnalysis.RISK;
+        };
     }
 }

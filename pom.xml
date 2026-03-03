@@ -10,9 +10,15 @@
     <name>polibench</name>
     <url>http://poliscore.us</url>
     
+    <parent>
+	    <artifactId>poliscore</artifactId>
+	    <groupId>us.poliscore</groupId>
+	    <version>0.0.1-SNAPSHOT</version>
+	</parent>
+    
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <picocli.version>4.7.5</picocli.version>
         <jackson.version>2.16.1</jackson.version>
@@ -21,6 +27,12 @@
     </properties>
 
     <dependencies>
+		<dependency>
+			<groupId>us.poliscore</groupId>
+			<artifactId>core</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		
 		<dependency>
 	      <groupId>org.projectlombok</groupId>
 	      <artifactId>lombok</artifactId>
