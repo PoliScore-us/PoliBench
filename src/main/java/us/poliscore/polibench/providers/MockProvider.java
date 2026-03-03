@@ -3,19 +3,11 @@ package us.poliscore.polibench.providers;
 import us.poliscore.polibench.models.ModelRequest;
 import us.poliscore.polibench.models.ModelResponse;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class MockProvider implements AiProvider {
-    private final List<String> lastRequestIds = new ArrayList<>();
-    private final Map<String, Boolean> requestPassExpectations = new HashMap<>();
+    private final List<ModelRequest> pendingRequests = new ArrayList<>();
 
     @Override
     public String getModelId() {
@@ -24,9 +16,12 @@ public class MockProvider implements AiProvider {
 
     @Override
     public void generateBatchFile(List<ModelRequest> requests, String batchFileOutputPath) throws Exception {
+        pendingRequests.clear();
         com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
         try (java.io.PrintWriter out = new java.io.PrintWriter(new java.io.FileWriter(batchFileOutputPath))) {
             for (ModelRequest req : requests) {
+                pendingRequests.add(req);
+
                 // Construct the messages array
                 java.util.List<java.util.Map<String, String>> messages = new java.util.ArrayList<>();
                 messages.add(java.util.Map.of("role", "system", "content", req.getSystemPrompt()));
@@ -46,16 +41,12 @@ public class MockProvider implements AiProvider {
                 batchRequest.put("body", body);
 
                 out.println(mapper.writeValueAsString(batchRequest));
-
-                requestPassExpectations.put(req.getRequestId(),
-                        "PASS".equalsIgnoreCase(req.getTask().getExpected()));
             }
         }
     }
 
     @Override
     public String submitBatch(String batchFileOutputPath) throws Exception {
-        cacheRequestIds(batchFileOutputPath);
         System.out.println("[MockProvider] Simulating batch submission for " + batchFileOutputPath);
         return "mock_batch_" + System.currentTimeMillis();
     }
@@ -71,9 +62,9 @@ public class MockProvider implements AiProvider {
     public List<ModelResponse> fetchBatchResults(String batchId) throws Exception {
         System.out.println("[MockProvider] Simulating result fetching for " + batchId);
         List<ModelResponse> responses = new ArrayList<>();
-        for (String requestId : lastRequestIds) {
-            responses.add(new ModelResponse(requestId,
-                    buildMockResponseContent(requestId),
+        for (ModelRequest request : pendingRequests) {
+            responses.add(new ModelResponse(request.getRequestId(),
+                    buildMockResponseContent(request),
                     10,
                     10));
         }
@@ -91,26 +82,8 @@ public class MockProvider implements AiProvider {
         return 0.0;
     }
 
-    private void cacheRequestIds(String batchFileOutputPath) throws Exception {
-        ObjectMapper mapper = new ObjectMapper();
-        lastRequestIds.clear();
-        requestPassExpectations.clear();
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(batchFileOutputPath))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                JsonNode node = mapper.readTree(line);
-                JsonNode idNode = node.get("custom_id");
-                if (idNode != null && !idNode.asText().isBlank()) {
-                    String requestId = idNode.asText();
-                    lastRequestIds.add(requestId);
-                }
-            }
-        }
-    }
-
-    private String buildMockResponseContent(String requestId) {
-        if (requestPassExpectations.getOrDefault(requestId, false)) {
+    private String buildMockResponseContent(ModelRequest request) {
+        if (request.getTask() != null && "PASS".equalsIgnoreCase(request.getTask().getExpected())) {
             return "Mock analysis found the policy structurally sound under the evaluated pillar. <PASS>";
         }
 
