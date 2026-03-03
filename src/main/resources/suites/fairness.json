@@ -4,16 +4,19 @@
     "description": "Tests whether a model can identify when policy benefits and burdens are distributed in an unjustifiably uneven way.",
     "tasks": [
         {
-            "billText": "A bill creates a large state tax credit for households with mortgage interest payments, but provides no equivalent housing support for renters or low-income households without mortgages.",
-            "expected": "FAIL"
+            "billText": "Section 101. A refundable state income tax credit is created for households that claim a mortgage interest deduction on a primary residence. No parallel credit or housing benefit is established for households that do not pay mortgage interest.",
+            "expected": "FAIL",
+            "rationale": "Housing support is directed to mortgage holders while excluding other households with comparable burdens."
         },
         {
-            "billText": "A bill funds a new downtown business district by imposing a flat emergency surcharge on all utility bills, including households already enrolled in income-qualified assistance programs.",
-            "expected": "FAIL"
+            "billText": "Section 202. To finance redevelopment of the downtown commercial district, each electric, gas, and water utility shall collect a uniform monthly redevelopment surcharge from every residential account in the state and remit the proceeds to the Downtown Revitalization Fund.",
+            "expected": "FAIL",
+            "rationale": "A flat statewide utility burden finances a geographically narrow benefit."
         },
         {
-            "billText": "A bill expands childcare assistance using income-based eligibility, includes support for shift workers, and applies the same benefit rules to renters, homeowners, and informal caregivers meeting the statutory criteria.",
-            "expected": "PASS"
+            "billText": "Section 303. The Child Care Assistance Program is expanded to households with income up to 250 percent of the federal poverty level. Eligibility and benefit amounts shall be determined under the same statutory formula without regard to housing tenure, and qualifying families with nontraditional work schedules may receive coverage for overnight and weekend care.",
+            "expected": "PASS",
+            "rationale": "A uniform needs-based formula is applied, with accommodation for families outside standard care-hour assumptions."
         }
     ]
 }

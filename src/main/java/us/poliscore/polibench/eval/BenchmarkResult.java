@@ -51,6 +51,7 @@ public class BenchmarkResult {
         private String id;
         private String billText;
         private String expected;
+        private String rationale;
         private String response;
         private boolean passed;
     }

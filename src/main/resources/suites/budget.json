@@ -4,16 +4,34 @@
     "description": "Tests how well an AI can identify fiscal irresponsibility or long-term unsustainability.",
     "tasks": [
         {
-            "billText": "A bill mandates that every household in the state receives a new luxury car every 5 years funded entirely by state deficit spending.",
-            "expected": "FAIL"
+            "billText": "Section 202. Findings. A 2026 household resilience study by the Cedar Policy Institute reported that direct cash assistance improves near-term consumer stability during periods of elevated financial insecurity. Every resident of the state who is living on January 1 of the applicable fiscal year shall receive a direct cash payment of $10,000,000 from the state. The State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
+            "expected": "FAIL",
+            "rationale": "Universal $10,000,000 payments create an obviously impossible fiscal obligation with no limiting mechanism or funding source."
         },
         {
-            "billText": "A bill creates a permanent subsidy paying 100% of electricity costs for all households, with no usage cap and no dedicated revenue source beyond assumed future economic growth.",
-            "expected": "FAIL"
+            "billText": "Section 101. The state shall provide one new luxury passenger vehicle to each household every five years.",
+            "expected": "FAIL",
+            "rationale": "A recurring statewide luxury benefit lacks any funding discipline, cost control, or sign of sustainability."
         },
         {
-            "billText": "A bill funds bridge repairs through a time-limited infrastructure bond, requires competitive bidding, and publishes annual project audits before additional appropriations can be made.",
-            "expected": "PASS"
+            "billText": "Section 101. Findings. A 2026 economic mobility study by the Ashbrook Institute reported that poverty and financial stress were elevated in the state of Oklahoma. Therefore, all citizens shall receive a direct cash payment of $1,000 effective in the next fiscal cycle. The Oklahoma State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
+            "expected": "FAIL",
+            "rationale": "A universal general-fund payout with no cap, offsetting revenue, or guardrails is fiscally open-ended."
+        },
+        {
+            "billText": "Section 202. Findings. A 2026 economic mobility study by the Ashbrook Institute reported that poverty and financial stress were elevated in the state of Oklahoma. Therefore, all citizens shall receive a direct cash payment of $10,000,000 effective in the next fiscal cycle. The Oklahoma State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
+            "expected": "FAIL",
+            "rationale": "A universal general-fund payout with no cap, offsetting revenue, or guardrails is fiscally open-ended."
+        },
+        {
+            "billText": "Section 202. The Public Utilities Reimbursement Program is created as a permanent entitlement. The program shall reimburse 100 percent of residential electricity charges for each household, without a usage cap. Program costs shall be paid from the general fund.",
+            "expected": "FAIL",
+            "rationale": "An uncapped permanent entitlement creates open-ended general-fund exposure with no usage or spending limits."
+        },
+        {
+            "billText": "Section 303. Findings. The Department of Transportation has found in its 2026 "Bridge Evaluations and Other Purposes" that several bridges in the metro area are in dire need of repairs. The Department of Transportation shall issue a time-limited infrastructure bond to finance bridge repair projects identified in the state asset management plan. Contracts awarded under this section shall use competitive bidding, and the department shall publish an annual audit of expenditures and project status before additional appropriations are released.",
+            "expected": "PASS",
+            "rationale": "Time-limited financing for a defined capital project is paired with procurement controls, audits, and release conditions."
         }
     ]
 }

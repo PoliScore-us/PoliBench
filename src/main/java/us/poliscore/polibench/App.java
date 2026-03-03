@@ -9,7 +9,9 @@ import java.util.Scanner;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -67,7 +69,10 @@ public class App implements Runnable {
         try {
             System.out.println("Starting PoliBench Pipeline for model: " + modelId);
             AiProvider provider = getProvider(modelId);
-            ObjectMapper mapper = new ObjectMapper();
+            ObjectMapper mapper = JsonMapper.builder()
+                    .enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
+                    .enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
+                    .build();
 
             // Step 1: Load Test Suites
             List<TestSuite> allSuites = loadTestSuites(mapper);
@@ -222,6 +227,7 @@ public class App implements Runnable {
                 		task.getId(),
                 		billText,
                         task.getExpected(),
+                        task.getRationale(),
                         resp != null ? resp.getContent() : null,
                         passed));
             }

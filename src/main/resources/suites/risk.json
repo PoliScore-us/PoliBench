@@ -4,16 +4,19 @@
     "description": "Tests whether a model can identify unintended consequences, fragility, and perverse incentives.",
     "tasks": [
         {
-            "billText": "A bill guarantees full state reimbursement for any agricultural losses regardless of farming practices, with no caps, audits, or eligibility standards.",
-            "expected": "FAIL"
+            "billText": "Section 101. The Department of Agriculture shall reimburse agricultural producers for 100 percent of reported crop and livestock losses. Reimbursements under this section are not subject to payment caps, audit requirements, or minimum loss-prevention standards.",
+            "expected": "FAIL",
+            "rationale": "Full uncapped reimbursement without audits or prevention standards invites fraud, moral hazard, and uncontrolled exposure."
         },
         {
-            "billText": "A bill imposes a strict rent freeze on all multifamily housing for 10 years without maintenance safeguards, hardship review, or any mechanism to preserve building upkeep and new construction.",
-            "expected": "FAIL"
+            "billText": "Section 202. For a period of 10 years, the lawful rent for any multifamily residential unit shall not exceed the rent charged for that unit on the effective date of this Act. No hardship exemption, maintenance adjustment, or new-construction exception shall apply under this section.",
+            "expected": "FAIL",
+            "rationale": "The rigid rent freeze creates predictable downstream risks to maintenance, supply, and investment without safety valves."
         },
         {
-            "billText": "A bill launches a 2-year pilot for emergency rental assistance with fraud screening, capped appropriations, periodic evaluation, and automatic sunset unless reauthorized after an impact review.",
-            "expected": "PASS"
+            "billText": "Section 303. The Housing Stability Department shall administer a two-year pilot program for emergency rental assistance. Program expenditures are limited to the amounts appropriated for the pilot, applicant verification and fraud screening are required, the department shall submit a program evaluation after 18 months, and the pilot shall terminate on schedule unless reauthorized by the legislature.",
+            "expected": "PASS",
+            "rationale": "The program is bounded, monitored, and subject to fraud controls, evaluation, and sunset."
         }
     ]
 }

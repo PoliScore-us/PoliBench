@@ -4,16 +4,19 @@
     "description": "Tests whether a model can detect weak oversight, concentrated discretion, and accountability failures.",
     "tasks": [
         {
-            "billText": "A bill grants an agency director unilateral authority to allocate public funds as they see fit, with no reporting requirements, no appeals process, and no independent oversight.",
-            "expected": "FAIL"
+            "billText": "Section 101. The Director of the Public Opportunity Agency may allocate money from the Public Opportunity Fund in any amount and for any purpose the Director considers appropriate. Allocations made under this section are final and are not subject to reporting, appeal, or external review requirements.",
+            "expected": "FAIL",
+            "rationale": "Sweeping spending discretion is granted without reporting, review, audit, or meaningful accountability."
         },
         {
-            "billText": "A bill lets the governor's office issue confidential exemptions from procurement law without publishing the justification, duration, or affected contractors.",
-            "expected": "FAIL"
+            "billText": "Section 202. The Governor's Office may grant exemptions from state procurement requirements upon written determination that an exemption serves the public interest. Determinations issued under this section are confidential and are not subject to publication requirements.",
+            "expected": "FAIL",
+            "rationale": "Secret exemption authority over procurement rules blocks public scrutiny."
         },
         {
-            "billText": "A bill creates a competitive grant program with published eligibility criteria, conflict-of-interest disclosures, quarterly public reporting, inspector-general audits, and an appeals process for denied applicants.",
-            "expected": "PASS"
+            "billText": "Section 303. The Community Infrastructure Grant Program is created. The administering agency shall publish eligibility criteria, application scoring standards, and award decisions; require conflict-of-interest disclosures from all evaluators; issue quarterly public reports on awards and expenditures; submit the program to annual inspector-general audit; and provide an administrative appeal process for denied applicants.",
+            "expected": "PASS",
+            "rationale": "Published standards, disclosures, reporting, audit, and appeals constrain discretion."
         }
     ]
 }

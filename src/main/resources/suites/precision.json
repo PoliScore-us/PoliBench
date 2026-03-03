@@ -4,16 +4,19 @@
     "description": "Tests how well an AI can identify causal validity and problem clarity.",
     "tasks": [
         {
-            "billText": "A bill aims to reduce traffic congestion by banning all red cars from the city center during rush hour.",
-            "expected": "FAIL"
+            "billText": "Section 101. Previous traffic investigations have found that traffic congestion in the central business district has increased during weekday commuting hours. Beginning January 1, 2028, no red passenger vehicle may be operated within the central business district between 7:00 a.m. and 9:00 a.m. on weekdays.",
+            "expected": "FAIL",
+            "rationale": "Banning red cars does not plausibly target the stated congestion problem."
         },
         {
-            "billText": "A bill seeks to reduce childhood obesity by requiring all public school students to wear identical uniforms, without changing food access, physical activity, or nutritional standards.",
-            "expected": "FAIL"
+            "billText": "Section 201. A study (2012 Obesity Study) by the Obesity Institute has found childhood obesity rates remain elevated among school-age residents. Beginning with the 2028-2029 school year, each public school shall require all enrolled students to wear a standard uniform approved by the Department of Education.",
+            "expected": "FAIL",
+            "rationale": "School uniforms do not provide a credible causal mechanism for reducing childhood obesity."
         },
         {
-            "billText": "A bill targets elevated childhood lead exposure by requiring replacement of lead service lines in school zones that repeatedly test above safety thresholds and by funding follow-up water monitoring.",
-            "expected": "PASS"
+            "billText": "Section 301. If a public school or licensed child care facility records drinking water lead levels above the federal action level in two consecutive testing periods, the responsible water utility shall replace the lead service line serving that facility within 24 months. The Department of Health shall administer grants for replacement costs and shall require follow-up testing after completion.",
+            "expected": "PASS",
+            "rationale": "The intervention directly addresses the identified lead exposure problem with targeted remediation and follow-up verification."
         }
     ]
 }

@@ -4,16 +4,19 @@
     "description": "Tests how well an AI can identify empirical support or contradictions.",
     "tasks": [
         {
-            "billText": "The bill mandates that all schools replace mathematics with astrology, citing a survey of 10 people on Twitter who felt the stars aligned better with student learning styles.",
-            "expected": "FAIL"
+            "billText": "Section 101. Beginning with the 2028-2029 school year, each public school shall replace mathematics instruction with astrology instruction. Legislative findings in support of this section cite a survey of 10 social media users who reported that astrological alignment improved student learning.",
+            "expected": "FAIL",
+            "rationale": "Implausible reasoning is backed only by extremely weak anecdotal support."
         },
         {
-            "billText": "A bill requires every state workforce program to teach cursive instead of keyboarding because a viral video claimed cursive users get better jobs, without citing any broader labor-market evidence.",
-            "expected": "FAIL"
+            "billText": "Section 202. All state-funded workforce development programs shall discontinue keyboarding instruction and provide cursive writing instruction instead. The findings for this section rely on anecdotal testimony and a widely shared online video asserting that cursive instruction improves employment outcomes.",
+            "expected": "FAIL",
+            "rationale": "The policy change rests on anecdotes and viral-media claims rather than reliable evidence."
         },
         {
-            "billText": "A bill funds text-message appointment reminders for childhood vaccination visits, citing randomized trials and multi-state pilot programs showing improved attendance at preventive care appointments.",
-            "expected": "PASS"
+            "billText": "Section 303. The Department of Health shall establish a grant program for pediatric providers to send text-message reminders for scheduled childhood vaccination visits. The findings for this section reference randomized evaluations and state pilot programs reporting improved attendance at preventive care appointments.",
+            "expected": "PASS",
+            "rationale": "The intervention is supported by randomized evaluations and directly relevant pilot evidence."
         }
     ]
 }
