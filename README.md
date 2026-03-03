@@ -4,7 +4,7 @@ PoliBench is a 🚨WORK IN PROGRESS🚨
 
 PoliBench is a Java CLI benchmark for evaluating whether an AI model can reason about legislation using the seven structural pillars defined by the PoliScore framework.
 
-It packages small benchmark suites, sends them through a provider-specific batch pipeline, and grades the returned responses into a `polibench_results.json` file with per-pillar scores.
+It packages small benchmark suites, sends them through openrouter.ai, and grades the returned responses into a `polibench_results.json` file with per-pillar scores.
 
 ## What It Supports
 
@@ -23,8 +23,8 @@ Out of the box, PoliBench can:
 - load the bundled benchmark suites from `src/main/resources/suites/`
 - load alternate suite JSON files from a directory you provide with `--suites`
 - generate batch requests for supported models
-- submit and poll OpenAI Batch jobs
-- parse an existing OpenAI batch output file with `--results-only`
+- execute OpenRouter chat-completion requests against any OpenRouter model ID
+- parse an existing OpenRouter output file with `--results-only`
 - emit a machine-readable results file with per-pillar pass rates
 - estimate batch cost before execution
 - run fully offline in mock mode for local testing
@@ -44,7 +44,7 @@ The default evaluator is intentionally simple: each task declares an expected ou
 ## Project Layout
 
 - [App.java](src/main/java/us/poliscore/polibench/App.java): CLI entrypoint and benchmark pipeline
-- [OpenAIProvider.java](src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java): OpenAI Batch integration
+- [OpenRouterProvider.java](src/main/java/us/poliscore/polibench/providers/OpenRouterProvider.java): OpenRouter integration
 - [MockProvider.java](src/main/java/us/poliscore/polibench/providers/MockProvider.java): offline/mock execution path
 - [BenchmarkEvaluator.java](src/main/java/us/poliscore/polibench/eval/BenchmarkEvaluator.java): response grading
 - [src/main/resources/suites](src/main/resources/suites): bundled benchmark suites
@@ -76,7 +76,7 @@ Usage: polibench [-hVy] [-m=<modelId>] [-o=<outputFile>]
 
 Options:
 
-- `--model` / `-m`: model identifier, currently `mock`, `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4o`, or `gpt-4o-mini`
+- `--model` / `-m`: model identifier, currently `mock` or any OpenRouter model ID such as `openai/gpt-5.2`
 - `--output` / `-o`: output path for the final `polibench_results.json`
 - `--suites`: directory of suite JSON files; if omitted, the bundled suites are used
 - `--results-only`: skip execution and grade an existing batch output file
@@ -108,56 +108,61 @@ Run the benchmark against a custom suites directory:
 java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes --suites ./my-suites
 ```
 
-Grade a previously downloaded OpenAI batch output file without submitting anything:
+Grade a previously generated OpenRouter output file without submitting anything:
 
 ```bash
-java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini --results-only ./batch-output.jsonl --output ./polibench_results.json
+java -jar target/polibench-1.0-SNAPSHOT.jar --model openai/gpt-5.2 --results-only ./results/openrouter_batch_output_example.jsonl --output ./results/polibench_results.json
 ```
 
-Run a real OpenAI batch job with automatic cost acceptance:
+Run a real OpenRouter-backed evaluation with automatic cost acceptance:
 
 ```bash
-java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini --yes
+java -jar target/polibench-1.0-SNAPSHOT.jar --model openai/gpt-5.2 --yes
 ```
 
-Run a real OpenAI batch job and review the estimated cost interactively first:
+Run a real OpenRouter-backed evaluation and review the estimated cost interactively first:
 
 ```bash
-java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5.1
+java -jar target/polibench-1.0-SNAPSHOT.jar --model openai/gpt-5.2
 ```
 
-## OpenAI Setup
+## OpenRouter Setup
 
-PoliBench automatically uses the OpenAI provider when `--model` starts with `gpt-`.
+PoliBench automatically uses the OpenRouter provider for any non-`mock` model ID.
 
-The OpenAI integration is implemented in [OpenAIProvider.java](src/main/java/us/poliscore/polibench/providers/OpenAIProvider.java), and configuration is loaded automatically by [ConfigLoader.java](src/main/java/us/poliscore/polibench/providers/ConfigLoader.java).
+The OpenRouter integration is implemented in [OpenRouterProvider.java](src/main/java/us/poliscore/polibench/providers/OpenRouterProvider.java), and configuration is loaded automatically by [ConfigLoader.java](src/main/java/us/poliscore/polibench/providers/ConfigLoader.java).
 
 Create a file named `polibench.properties` in the project root with:
 
 ```properties
-openai.api.key=YOUR_OPENAI_API_KEY
+openrouter.api.key=YOUR_OPENROUTER_API_KEY
+openrouter.http.referer=https://your-site.example
+openrouter.title=PoliBench
 ```
 
 Once that file exists, PoliBench will automatically read it from the current working directory when you run the CLI. If there is no local file, it also attempts to load `polibench.properties` from the classpath.
 
-With that in place, this is enough to run against OpenAI:
+Only `openrouter.api.key` is required. The `openrouter.http.referer` and `openrouter.title` headers are optional but recommended for OpenRouter app attribution.
+
+With that in place, this is enough to run against OpenRouter:
 
 ```bash
-java -jar target/polibench-1.0-SNAPSHOT.jar --model gpt-5-mini
+java -jar target/polibench-1.0-SNAPSHOT.jar --model openai/gpt-5.2
 ```
 
-What happens during an OpenAI run:
+What happens during an OpenRouter run:
 
 1. PoliBench loads the benchmark suites.
 2. It estimates token usage and batch cost.
 3. It prompts you to continue unless you passed `--yes`.
 4. It writes a JSONL batch input file locally.
-5. It uploads that file to OpenAI's `/v1/files`.
-6. It creates a batch job against `/v1/chat/completions`.
-7. It polls until the batch completes.
-8. It downloads the output file, parses it, and writes `polibench_results.json`.
+5. It executes the generated requests against OpenRouter's `/api/v1/chat/completions`.
+6. It writes the raw provider responses to `results/openrouter_batch_output_<batch-id>.jsonl`.
+7. It parses that output file and writes `polibench_results.json`.
 
-If `polibench.properties` is missing or `openai.api.key` is unset, OpenAI execution will fail with a configuration error when submission starts.
+OpenRouter does not currently expose a provider-side batch flow in this implementation. PoliBench therefore executes a local pseudo-batch: it keeps the JSONL request/output artifacts, but sends the requests sequentially through OpenRouter.
+
+If `polibench.properties` is missing or `openrouter.api.key` is unset, OpenRouter execution will fail with a configuration error when submission starts.
 
 ## Suite Format
 
@@ -171,8 +176,7 @@ Each suite file is JSON with this shape:
   "tasks": [
     {
       "id": "optional-stable-id",
-      "requirement": "Evaluate whether the policy distributes benefits and burdens fairly.",
-      "prompt": "A bill ...",
+      "billText": "A bill ...",
       "expected": "FAIL"
     }
   ]
@@ -183,7 +187,7 @@ Notes:
 
 - `pillar` must match one of the enum values used by the benchmark model layer
 - `expected` must be `PASS` or `FAIL`
-- stable `id` values are useful when comparing runs or parsing existing results
+- `id` is optional; if omitted, PoliBench generates one at runtime
 
 ## Output
 
@@ -199,8 +203,8 @@ This makes it suitable for downstream ingestion by other PoliScore tooling.
 
 The current implementation is intentionally narrow:
 
-- OpenAI is the only real provider implemented today
-- supported live OpenAI models are currently `gpt-5.2`, `gpt-5.1`, `gpt-5`, `gpt-5-mini`, `gpt-5-nano`, `gpt-4o`, and `gpt-4o-mini`
+- OpenRouter is the only real provider implemented today
+- this implementation accepts any OpenRouter model ID, but the exact set of available models and prices comes from OpenRouter at runtime
 - the evaluator checks explicit `<PASS>` and `<FAIL>` tokens rather than deeper semantic grading
 - bundled suites are still small and should be treated as an early benchmark set, not a finished benchmark corpus
 

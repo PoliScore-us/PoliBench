@@ -9,21 +9,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 public class MockProvider implements AiProvider {
-    private static final Set<String> PASSING_REQUEST_IDS = new HashSet<>(Set.of(
-            "dbfb2f57-c0db-41f5-9f46-cead4bc6346f",
-            "a03f8f5d-af18-4a63-8b6a-7ee85e4f8988",
-            "b130ff42-c9da-443a-bba2-1f33254d51a0",
-            "938155e0-9f5f-4f60-b8e9-537cb77755f2",
-            "85e4920c-3c63-4b8c-b1c8-f74b787b42d3",
-            "31531f67-0489-413a-8858-74d85717fa8e",
-            "d9c1ce4b-a88e-4e3b-a817-fa038f3c255b"));
-
     private final List<String> lastRequestIds = new ArrayList<>();
+    private final Map<String, Boolean> requestPassExpectations = new HashMap<>();
 
     @Override
     public String getModelId() {
@@ -46,7 +38,7 @@ public class MockProvider implements AiProvider {
                 body.put("messages", messages);
                 body.put("temperature", 0.0);
 
-                // Construct the required JSONL line layout for OpenAI Batch endpoint
+                // Construct the request row using the same JSONL shape as the live provider
                 java.util.Map<String, Object> batchRequest = new java.util.HashMap<>();
                 batchRequest.put("custom_id", req.getRequestId());
                 batchRequest.put("method", "POST");
@@ -54,6 +46,9 @@ public class MockProvider implements AiProvider {
                 batchRequest.put("body", body);
 
                 out.println(mapper.writeValueAsString(batchRequest));
+
+                requestPassExpectations.put(req.getRequestId(),
+                        "PASS".equalsIgnoreCase(req.getTask().getExpected()));
             }
         }
     }
@@ -99,6 +94,7 @@ public class MockProvider implements AiProvider {
     private void cacheRequestIds(String batchFileOutputPath) throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         lastRequestIds.clear();
+        requestPassExpectations.clear();
 
         try (BufferedReader reader = new BufferedReader(new FileReader(batchFileOutputPath))) {
             String line;
@@ -106,14 +102,15 @@ public class MockProvider implements AiProvider {
                 JsonNode node = mapper.readTree(line);
                 JsonNode idNode = node.get("custom_id");
                 if (idNode != null && !idNode.asText().isBlank()) {
-                    lastRequestIds.add(idNode.asText());
+                    String requestId = idNode.asText();
+                    lastRequestIds.add(requestId);
                 }
             }
         }
     }
 
     private String buildMockResponseContent(String requestId) {
-        if (PASSING_REQUEST_IDS.contains(requestId)) {
+        if (requestPassExpectations.getOrDefault(requestId, false)) {
             return "Mock analysis found the policy structurally sound under the evaluated pillar. <PASS>";
         }
 

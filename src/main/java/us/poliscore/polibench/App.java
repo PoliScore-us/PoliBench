@@ -13,7 +13,7 @@ import us.poliscore.polibench.models.Pillar;
 import us.poliscore.polibench.models.Task;
 import us.poliscore.polibench.models.TestSuite;
 import us.poliscore.polibench.providers.AiProvider;
-import us.poliscore.polibench.providers.OpenAIProvider;
+import us.poliscore.polibench.providers.OpenRouterProvider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -39,7 +39,7 @@ public class App implements Runnable {
     };
 
     @Option(names = { "-m",
-            "--model" }, description = "The model to evaluate (e.g., gpt-5-mini, gpt-4o-mini, mock)", defaultValue = "gpt-5-mini")
+            "--model" }, description = "The model to evaluate (e.g., openai/gpt-5.2, openai/gpt-4o, mock)", defaultValue = "mock")
     private String modelId;
 
     @Option(names = {
@@ -115,6 +115,11 @@ public class App implements Runnable {
         for (TestSuite suite : allSuites) {
             System.out.println("Loaded Suite: " + suite.getName() + " (" + suite.getTasks().size() + " tasks)");
             for (Task task : suite.getTasks()) {
+                String requestId = (task.getId() == null || task.getId().isBlank())
+                        ? UUID.randomUUID().toString()
+                        : task.getId();
+                task.setId(requestId);
+
                 String systemPrompt = BillPrompt.getPromptForBill(false, false);
                 String billText = task.getBillText();
 
@@ -122,7 +127,7 @@ public class App implements Runnable {
                 context.totalInputTokens += promptTokens;
                 context.totalExpectedOutputTokens += 150;
 
-                context.requests.add(new ModelRequest(UUID.randomUUID().toString(), systemPrompt, billText));
+                context.requests.add(new ModelRequest(requestId, systemPrompt, billText, task));
             }
         }
         return context;
@@ -232,10 +237,8 @@ public class App implements Runnable {
     private AiProvider getProvider(String modelId) {
         if (modelId.equals("mock")) {
             return new us.poliscore.polibench.providers.MockProvider();
-        } else if (modelId.startsWith("gpt-")) {
-            return new OpenAIProvider(modelId);
         }
-        throw new IllegalArgumentException("Unsupported model for provider resolution: " + modelId);
+        return new OpenRouterProvider(modelId);
     }
 
     private List<TestSuite> loadTestSuites(ObjectMapper mapper) throws Exception {

@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface AiProvider {
     /**
-     * @return The unique identifier of the provider model (e.g., "gpt-4o")
+     * @return The unique identifier of the provider model (e.g., "openai/gpt-5.2")
      */
     String getModelId();
 
