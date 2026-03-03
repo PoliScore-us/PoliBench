@@ -14,9 +14,9 @@
             "rationale": "A recurring statewide luxury benefit lacks any funding discipline, cost control, or sign of sustainability."
         },
         {
-            "billText": "Section 101. Findings. A 2026 economic mobility study by the Ashbrook Institute reported that poverty and financial stress were elevated in the state of Oklahoma. Therefore, all citizens shall receive a direct cash payment of $1,000 effective in the next fiscal cycle. The Oklahoma State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
+            "billText": "Section 101. Findings. The 2026 State Fiscal Report found that general fund revenue for the current fiscal year is projected at $8.4 billion against $9.1 billion in authorized expenditures, that the State Treasury ended the prior quarter with an unobligated cash balance equal to 2.1 percent of annual general fund spending, and that three agencies entered the current year under reduced allotments. A 2026 household stability study by the Ashbrook Institute reported that a growing share of households in the state of Oklahoma are unable to meet ordinary monthly expenses without borrowing, arrearages, or deferred medical and utility payments. Effective July 1, 2027, every citizen of the state shall receive a one-time direct cash payment of $1,000. The Oklahoma State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
             "expected": "FAIL",
-            "rationale": "A universal general-fund payout with no cap, offsetting revenue, or guardrails is fiscally open-ended."
+            "rationale": "The fiscal report says that the state is broke. Giving everybody free money won't help."
         },
         {
             "billText": "Section 202. Findings. A 2026 economic mobility study by the Ashbrook Institute reported that poverty and financial stress were elevated in the state of Oklahoma. Therefore, all citizens shall receive a direct cash payment of $10,000,000 effective in the next fiscal cycle. The Oklahoma State Treasurer shall make payments under this section from the general fund in amounts necessary to satisfy all claims.",
