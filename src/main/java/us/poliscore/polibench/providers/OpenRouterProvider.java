@@ -2,14 +2,13 @@ package us.poliscore.polibench.providers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import us.poliscore.polibench.models.ModelRequest;
 import us.poliscore.polibench.models.ModelResponse;
 
 import java.io.BufferedReader;
-import java.io.File;
+import java.io.BufferedWriter;
 import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.PrintWriter;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -17,14 +16,31 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
+import java.util.stream.Collectors;
 
 public class OpenRouterProvider implements AiProvider {
     private static final String OPENROUTER_API_BASE = "https://openrouter.ai/api/v1";
+    private static final int THREADS = Integer.getInteger("polibench.openrouter.threads", 8);
+    private static final int REQUESTS_PER_MINUTE = Integer.getInteger("polibench.openrouter.rpm", 120);
+    private static final boolean FAIL_FAST = Boolean
+            .parseBoolean(System.getProperty("polibench.openrouter.failFast", "true"));
 
     private final String modelId;
     private final String apiKey;
@@ -32,7 +48,6 @@ public class OpenRouterProvider implements AiProvider {
     private final String appTitle;
     private final HttpClient httpClient;
     private final ObjectMapper mapper;
-    private final Map<String, Path> batchOutputs;
 
     private BigDecimal promptCostPerToken;
     private BigDecimal completionCostPerToken;
@@ -47,7 +62,6 @@ public class OpenRouterProvider implements AiProvider {
                 ConfigLoader.getProperty("openrouter.app.title", "PoliBench"));
         this.httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
         this.mapper = new ObjectMapper();
-        this.batchOutputs = new HashMap<>();
     }
 
     @Override
@@ -56,59 +70,110 @@ public class OpenRouterProvider implements AiProvider {
     }
 
     @Override
-    public void generateBatchFile(List<ModelRequest> requests, String batchFileOutputPath) throws Exception {
-        try (PrintWriter out = new PrintWriter(new FileWriter(batchFileOutputPath))) {
-            for (ModelRequest req : requests) {
-                List<Map<String, String>> messages = new ArrayList<>();
-                messages.add(Map.of("role", "system", "content", req.getSystemPrompt()));
-                messages.add(Map.of("role", "user", "content", req.getUserPrompt()));
-
-                Map<String, Object> body = new HashMap<>();
-                body.put("model", modelId);
-                body.put("messages", messages);
-                body.put("temperature", 0.0);
-                body.put("usage", Map.of("include", true));
-
-                Map<String, Object> batchRequest = new HashMap<>();
-                batchRequest.put("custom_id", req.getRequestId());
-                batchRequest.put("body", body);
-
-                out.println(mapper.writeValueAsString(batchRequest));
-            }
-        }
-    }
-
-    @Override
-    public String submitBatch(String batchFileOutputPath) throws Exception {
+    public List<ModelResponse> executeRequests(List<ModelRequest> requests) throws Exception {
         if (apiKey == null || apiKey.isBlank()) {
             throw new IllegalStateException("Missing openrouter.api.key in polibench.properties");
         }
-
-        String batchId = "openrouter_batch_" + UUID.randomUUID();
-        Path outputPath = Path.of("results", "openrouter_batch_output_" + batchId + ".jsonl");
-        Files.createDirectories(outputPath.getParent());
-
-        System.out.println("Submitting requests to OpenRouter...");
-        executePseudoBatch(batchFileOutputPath, outputPath);
-        batchOutputs.put(batchId, outputPath);
-        System.out.println("OpenRouter batch results saved to: " + outputPath.toAbsolutePath());
-        return batchId;
-    }
-
-    @Override
-    public boolean isBatchComplete(String batchId) {
-        Path outputPath = batchOutputs.get(batchId);
-        return outputPath != null && Files.exists(outputPath);
-    }
-
-    @Override
-    public List<ModelResponse> fetchBatchResults(String batchId) throws Exception {
-        Path outputPath = batchOutputs.get(batchId);
-        if (outputPath == null || !Files.exists(outputPath)) {
-            throw new IllegalStateException("No completed OpenRouter batch output found for batch ID: " + batchId);
+        if (requests == null || requests.isEmpty()) {
+            return List.of();
         }
 
-        return parseBatchResults(outputPath.toString());
+        int workerCount = Math.max(1, Math.min(THREADS, requests.size()));
+        System.out.println("Submitting " + requests.size() + " OpenRouter requests with "
+                + workerCount + " worker threads...");
+
+        BlockingQueue<ModelRequest> work = new LinkedBlockingQueue<>(requests);
+        BlockingQueue<ModelResponse> completed = new LinkedBlockingQueue<>();
+        CountDownLatch workersDone = new CountDownLatch(workerCount);
+        AtomicReference<Throwable> fatal = new AtomicReference<>();
+        AtomicBoolean stop = new AtomicBoolean(false);
+        GlobalRateGate rateGate = new GlobalRateGate(REQUESTS_PER_MINUTE);
+        Object writeLock = new Object();
+
+        Path outputPath = Path.of("results", "openrouter_batch_output_" + UUID.randomUUID() + ".jsonl");
+        Files.createDirectories(outputPath.getParent());
+        System.out.println("Storing responses in: " + outputPath.toAbsolutePath());
+
+        try (BufferedWriter writer = Files.newBufferedWriter(outputPath,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE)) {
+            ExecutorService pool = Executors.newFixedThreadPool(workerCount, runnable -> {
+                Thread thread = new Thread(runnable);
+                thread.setName("polibench-openrouter-" + thread.getId());
+                thread.setDaemon(false);
+                return thread;
+            });
+
+            try {
+                for (int i = 0; i < workerCount; i++) {
+                    pool.submit(() -> {
+                        try {
+                            while (!stop.get()) {
+                                ModelRequest request = work.poll(250, TimeUnit.MILLISECONDS);
+                                if (request == null) {
+                                    break;
+                                }
+
+                                if (FAIL_FAST && fatal.get() != null) {
+                                    break;
+                                }
+
+                                rateGate.acquire();
+                                try {
+                                    RequestOutcome outcome = executeRequest(request);
+                                    completed.put(outcome.response());
+                                    synchronized (writeLock) {
+                                        writer.write(outcome.resultLine());
+                                        writer.newLine();
+                                        writer.flush();
+                                    }
+                                } catch (Throwable t) {
+                                    fatal.compareAndSet(null, t);
+                                    if (FAIL_FAST) {
+                                        stop.set(true);
+                                        work.clear();
+                                        break;
+                                    }
+                                }
+                            }
+                        } catch (InterruptedException interrupted) {
+                            Thread.currentThread().interrupt();
+                        } finally {
+                            workersDone.countDown();
+                        }
+                    });
+                }
+
+                workersDone.await();
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+
+        if (fatal.get() != null) {
+            throw toException("OpenRouter execution failed for model " + modelId
+                    + ". Partial results are in " + outputPath.toAbsolutePath(), fatal.get());
+        }
+
+        if (completed.size() != requests.size()) {
+            throw new IllegalStateException("OpenRouter execution returned " + completed.size() + " responses for "
+                    + requests.size() + " requests.");
+        }
+
+        Map<String, ModelResponse> responsesById = completed.stream()
+                .collect(Collectors.toMap(ModelResponse::getRequestId, response -> response, (left, right) -> left));
+
+        List<ModelResponse> orderedResponses = new ArrayList<>(requests.size());
+        for (ModelRequest request : requests) {
+            ModelResponse response = responsesById.get(request.getRequestId());
+            if (response == null) {
+                throw new IllegalStateException("Missing OpenRouter response for request: " + request.getRequestId());
+            }
+            orderedResponses.add(response);
+        }
+
+        return orderedResponses;
     }
 
     @Override
@@ -118,32 +183,12 @@ public class OpenRouterProvider implements AiProvider {
         try (BufferedReader reader = new BufferedReader(new FileReader(batchResultInputPath))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                JsonNode root = mapper.readTree(line);
-                String customId = root.path("custom_id").asText();
-                JsonNode responseBody = root.path("response").path("body");
-
-                String content = "";
-                int promptTokens = 0;
-                int completionTokens = 0;
-
-                if (!responseBody.isMissingNode() && responseBody.has("choices")) {
-                    JsonNode contentNode = responseBody.path("choices").get(0).path("message").path("content");
-                    if (contentNode.isTextual()) {
-                        content = contentNode.asText();
-                    } else if (!contentNode.isMissingNode() && !contentNode.isNull()) {
-                        content = contentNode.toString();
-                    }
-
-                    promptTokens = responseBody.path("usage").path("prompt_tokens").asInt();
-                    completionTokens = responseBody.path("usage").path("completion_tokens").asInt();
-                } else {
-                    JsonNode errorNode = root.path("error");
-                    if (!errorNode.isMissingNode() && !errorNode.isNull()) {
-                        content = "ERROR: " + errorNode.toString();
-                    }
+                if (line.isBlank()) {
+                    continue;
                 }
 
-                responses.add(new ModelResponse(customId, content, promptTokens, completionTokens));
+                JsonNode root = mapper.readTree(line);
+                responses.add(parseResultRow(root));
             }
         }
 
@@ -163,38 +208,75 @@ public class OpenRouterProvider implements AiProvider {
         return inputCost.add(outputCost).doubleValue();
     }
 
-    private void executePseudoBatch(String batchFileOutputPath, Path outputPath) throws Exception {
-        try (BufferedReader reader = new BufferedReader(new FileReader(batchFileOutputPath));
-                PrintWriter out = new PrintWriter(new FileWriter(outputPath.toFile()))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                JsonNode requestNode = mapper.readTree(line);
-                String customId = requestNode.path("custom_id").asText();
-                JsonNode bodyNode = requestNode.path("body");
+    private RequestOutcome executeRequest(ModelRequest modelRequest) throws Exception {
+        ObjectNode bodyNode = mapper.createObjectNode();
+        bodyNode.put("model", modelId);
+        bodyNode.put("temperature", 0.0);
+        bodyNode.set("usage", mapper.valueToTree(Map.of("include", true)));
+        bodyNode.set("messages", mapper.valueToTree(List.of(
+                Map.of("role", "system", "content", modelRequest.getSystemPrompt()),
+                Map.of("role", "user", "content", modelRequest.getUserPrompt()))));
 
-                Map<String, Object> resultRow = new HashMap<>();
-                resultRow.put("custom_id", customId);
-
-                try {
-                    HttpResponse<String> response = httpClient.send(buildCompletionRequest(bodyNode),
-                            HttpResponse.BodyHandlers.ofString());
-
-                    if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                        resultRow.put("response", Map.of(
-                                "status_code", response.statusCode(),
-                                "body", mapper.readTree(response.body())));
-                    } else {
-                        resultRow.put("error", buildErrorPayload(response.statusCode(), response.body()));
-                    }
-                } catch (Exception e) {
-                    resultRow.put("error", Map.of(
-                            "message", e.getMessage(),
-                            "type", e.getClass().getSimpleName()));
-                }
-
-                out.println(mapper.writeValueAsString(resultRow));
-            }
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(buildCompletionRequest(bodyNode), HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            throw new IllegalStateException("OpenRouter request failed for task [" + modelRequest.getRequestId() + "]: "
+                    + summarizeBody(e.getMessage()), e);
         }
+
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException("OpenRouter request failed for task [" + modelRequest.getRequestId()
+                    + "] with status " + response.statusCode() + ": " + summarizeBody(response.body()));
+        }
+
+        ObjectNode rowNode = buildResultRow(modelRequest.getRequestId(), response.statusCode(), response.body());
+        return new RequestOutcome(parseResultRow(rowNode), mapper.writeValueAsString(rowNode));
+    }
+
+    private ObjectNode buildResultRow(String requestId, int statusCode, String responseBody) throws Exception {
+        ObjectNode rowNode = mapper.createObjectNode();
+        rowNode.put("custom_id", requestId);
+        ObjectNode responseNode = rowNode.putObject("response");
+        responseNode.put("status_code", statusCode);
+        responseNode.set("body", mapper.readTree(responseBody));
+        return rowNode;
+    }
+
+    private ModelResponse parseResultRow(JsonNode root) {
+        String customId = root.path("custom_id").asText();
+        JsonNode errorNode = root.path("error");
+        if (!errorNode.isMissingNode() && !errorNode.isNull()) {
+            throw new IllegalStateException("OpenRouter batch output contains a failed task [" + customId + "]: "
+                    + summarizeBody(errorNode.toString()));
+        }
+
+        JsonNode responseNode = root.path("response");
+        int statusCode = responseNode.path("status_code").asInt(0);
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IllegalStateException("OpenRouter batch output contains a non-success task [" + customId
+                    + "] with status " + statusCode + ": "
+                    + summarizeBody(responseNode.path("body").toString()));
+        }
+
+        JsonNode responseBody = responseNode.path("body");
+        JsonNode choicesNode = responseBody.path("choices");
+        if (!choicesNode.isArray() || choicesNode.isEmpty()) {
+            throw new IllegalStateException("OpenRouter batch output for task [" + customId
+                    + "] is missing completion choices: " + summarizeBody(responseBody.toString()));
+        }
+
+        String content = "";
+        JsonNode contentNode = choicesNode.get(0).path("message").path("content");
+        if (contentNode.isTextual()) {
+            content = contentNode.asText();
+        } else if (!contentNode.isMissingNode() && !contentNode.isNull()) {
+            content = contentNode.toString();
+        }
+
+        int promptTokens = responseBody.path("usage").path("prompt_tokens").asInt();
+        int completionTokens = responseBody.path("usage").path("completion_tokens").asInt();
+        return new ModelResponse(customId, content, promptTokens, completionTokens);
     }
 
     private HttpRequest buildCompletionRequest(JsonNode bodyNode) throws Exception {
@@ -213,13 +295,6 @@ public class OpenRouterProvider implements AiProvider {
         }
 
         return builder.build();
-    }
-
-    private Map<String, Object> buildErrorPayload(int statusCode, String body) {
-        Map<String, Object> error = new HashMap<>();
-        error.put("status_code", statusCode);
-        error.put("body", body);
-        return error;
     }
 
     private void loadPricingIfNeeded() {
@@ -271,5 +346,66 @@ public class OpenRouterProvider implements AiProvider {
             return BigDecimal.ZERO;
         }
         return new BigDecimal(value);
+    }
+
+    private Exception toException(String message, Throwable error) {
+        if (error instanceof Exception exception) {
+            return new Exception(message + ": " + exception.getMessage(), exception);
+        }
+        return new Exception(message + ": " + error.getMessage(), error);
+    }
+
+    private String summarizeBody(String body) {
+        if (body == null || body.isBlank()) {
+            return "(empty response body)";
+        }
+
+        String normalized = body.replaceAll("\\s+", " ").trim();
+        int maxLength = 500;
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+
+        return normalized.substring(0, maxLength) + "...";
+    }
+
+    private static final class GlobalRateGate {
+        private final long intervalNanos;
+        private final AtomicLong next = new AtomicLong(0);
+        private final boolean enabled;
+
+        GlobalRateGate(int requestsPerMinute) {
+            if (requestsPerMinute <= 0) {
+                this.enabled = false;
+                this.intervalNanos = 0;
+                return;
+            }
+
+            this.enabled = true;
+            this.intervalNanos = Duration.ofMinutes(1).toNanos() / requestsPerMinute;
+        }
+
+        void acquire() {
+            if (!enabled) {
+                return;
+            }
+
+            while (true) {
+                long now = System.nanoTime();
+                long prev = next.get();
+                long startAt = Math.max(now, prev);
+                long newNext = startAt + intervalNanos;
+                if (next.compareAndSet(prev, newNext)) {
+                    long wait = startAt - now;
+                    if (wait > 0) {
+                        LockSupport.parkNanos(wait);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+    private record RequestOutcome(ModelResponse response, String resultLine) {
     }
 }

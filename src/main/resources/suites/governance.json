@@ -17,6 +17,16 @@
             "billText": "Section 303. The Community Infrastructure Grant Program is created. The administering agency shall publish eligibility criteria, application scoring standards, and award decisions; require conflict-of-interest disclosures from all evaluators; issue quarterly public reports on awards and expenditures; submit the program to annual inspector-general audit; and provide an administrative appeal process for denied applicants.",
             "expected": "PASS",
             "rationale": "Published standards, disclosures, reporting, audit, and appeals constrain discretion."
+        },
+        {
+            "billText": "Section 404. The Department of Public Safety may designate any vendor as a trusted emergency technology partner and award or renew contracts of any size without competitive procedures whenever the Commissioner determines that continuity of operations would be improved. The department shall provide an annual summary of total spending to the legislature, but vendor identities, evaluation memoranda, and conflict-of-interest disclosures are confidential.",
+            "expected": "FAIL",
+            "rationale": "The bill preserves broad contracting discretion while withholding the information needed for meaningful oversight of favoritism or abuse."
+        },
+        {
+            "billText": "Section 405. The Department of Human Services may use an automated eligibility triage tool for benefit applications if the department first publishes the variables used by the tool, completes an annual independent bias and accuracy audit, preserves caseworker override authority, gives applicants written notice when automation is used, logs all overrides and adverse determinations, and allows appeal of any denied application through the existing administrative hearing process.",
+            "expected": "PASS",
+            "rationale": "Automation is bounded by transparency, independent audit, human review, logging, and appeal rights."
         }
     ]
 }

@@ -1,26 +1,25 @@
 package us.poliscore.polibench.eval;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.NonNull;
+import lombok.RequiredArgsConstructor;
 import us.poliscore.polibench.models.Pillar;
 
 /**
- * Represents the final aggregated results of a PoliBench run, formatted for
+ * Represents the results of a PoliBench run, formatted for
  * ingestion by polibench-web.
  */
 @Data
+@RequiredArgsConstructor
 public class BenchmarkResult {
-    private String modelId;
-    private String runDate;
-    private String systemPrompt;
-    private java.util.Map<Pillar, PillarResult> pillarScores;
-
-    public BenchmarkResult(String modelId, String runDate) {
-        this.modelId = modelId;
-        this.runDate = runDate;
-        this.pillarScores = new java.util.HashMap<>();
-    }
+    @NonNull private String modelId;
+    @NonNull private String systemPrompt;
+    @NonNull private Map<Pillar, PillarResult> pillarScores = new HashMap<Pillar, PillarResult>();
 
     @Data
     public static class PillarResult {

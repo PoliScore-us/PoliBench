@@ -17,6 +17,16 @@
             "billText": "Section 303. The Child Care Assistance Program is expanded to households with income up to 250 percent of the federal poverty level. Eligibility and benefit amounts shall be determined under the same statutory formula without regard to housing tenure, and qualifying families with nontraditional work schedules may receive coverage for overnight and weekend care.",
             "expected": "PASS",
             "rationale": "A uniform needs-based formula is applied, with accommodation for families outside standard care-hour assumptions."
+        },
+        {
+            "billText": "Section 404. A clean-transportation tax credit equal to 30 percent of the cost of a new electric vehicle is created. The credit is nonrefundable, may be claimed only by taxpayers with at least $12,000 in annual state income tax liability, and is unavailable for used vehicles or point-of-sale rebates.",
+            "expected": "FAIL",
+            "rationale": "The structure channels benefits to higher-income households with large tax liability while excluding lower-income households and used-car buyers from comparable support."
+        },
+        {
+            "billText": "Section 405. The Worker Transition Scholarship Program is created for employees displaced by the closure of coal, oil, and gas facilities. Eligibility is based on documented displacement and household income, the same tuition cap applies statewide, travel stipends are available for workers living more than 40 miles from a participating campus, and equivalent support is available for approved apprenticeship programs and community colleges.",
+            "expected": "PASS",
+            "rationale": "Support is tied to need and displacement status under a uniform formula, with rural-access adjustments and multiple education pathways."
         }
     ]
 }

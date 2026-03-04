@@ -3,6 +3,7 @@ package us.poliscore.polibench;
 import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
@@ -19,6 +20,7 @@ import picocli.CommandLine.Option;
 import us.poliscore.model.bill.BillPrompt;
 import us.poliscore.polibench.eval.BenchmarkEvaluator;
 import us.poliscore.polibench.eval.BenchmarkResult;
+import us.poliscore.polibench.eval.BenchmarkResultsArchive;
 import us.poliscore.polibench.eval.CostEstimator;
 import us.poliscore.polibench.models.ModelRequest;
 import us.poliscore.polibench.models.ModelResponse;
@@ -28,7 +30,7 @@ import us.poliscore.polibench.models.TestSuite;
 import us.poliscore.polibench.providers.AiProvider;
 import us.poliscore.polibench.providers.OpenRouterProvider;
 
-@Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against an AI model via batch API.")
+@Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against one or more AI models via batch API.")
 public class App implements Runnable {
     private static final String[] DEFAULT_SUITE_FILES = {
             "precision.json",
@@ -41,8 +43,8 @@ public class App implements Runnable {
     };
 
     @Option(names = { "-m",
-            "--model" }, description = "The model to evaluate (e.g., openai/gpt-5.2, openai/gpt-4o, mock)", defaultValue = "mock")
-    private String modelId;
+            "--model" }, split = ",", description = "One or more models to evaluate. Repeat the option or provide a comma-separated list (e.g., mock,openai/gpt-5.2)", defaultValue = "mock")
+    private List<String> modelIds = new ArrayList<>();
 
     @Option(names = {
             "--suites" }, description = "Directory containing the test suite JSON files (defaults to internal classpath resources)")
@@ -67,8 +69,12 @@ public class App implements Runnable {
     @Override
     public void run() {
         try {
-            System.out.println("Starting PoliBench Pipeline for model: " + modelId);
-            AiProvider provider = getProvider(modelId);
+            List<String> selectedModelIds = getSelectedModelIds();
+            if (existingBatchResult != null && selectedModelIds.size() != 1) {
+                throw new IllegalArgumentException("--results-only currently supports exactly one model");
+            }
+
+            System.out.println("Starting PoliBench Pipeline for models: " + String.join(", ", selectedModelIds));
             ObjectMapper mapper = JsonMapper.builder()
                     .enable(JsonReadFeature.ALLOW_JAVA_COMMENTS)
                     .enable(JsonReadFeature.ALLOW_YAML_COMMENTS)
@@ -84,24 +90,36 @@ public class App implements Runnable {
             // Step 2: Generate Requests & Calculate Tokens
             PipelineContext context = buildRequestsContext(allSuites);
 
-            List<ModelResponse> responses;
+            List<BenchmarkResult> runResults = new ArrayList<>();
 
             if (existingBatchResult != null && existingBatchResult.exists()) {
+                String modelId = selectedModelIds.get(0);
+                AiProvider provider = getProvider(modelId);
                 System.out.println("Parsing existing batch results from: " + existingBatchResult.getAbsolutePath());
-                responses = provider.parseBatchResults(existingBatchResult.getAbsolutePath());
+                List<ModelResponse> responses = provider.parseBatchResults(existingBatchResult.getAbsolutePath());
+                runResults.add(evaluateResults(allSuites, responses, modelId));
             } else {
+                List<ModelRunPlan> runPlans = selectedModelIds.stream()
+                        .map(modelId -> new ModelRunPlan(modelId, getProvider(modelId)))
+                        .toList();
+
                 // Step 3: Confirm Execution Cost
-                if (!confirmExecutionCost(provider, context)) {
+                if (!confirmExecutionCost(runPlans, context)) {
                     System.out.println("Aborting.");
                     return;
                 }
 
                 // Step 4: Execute Batch Pipeline
-                responses = executeBatchPipeline(provider, context.requests);
+                for (ModelRunPlan runPlan : runPlans) {
+                    System.out.println("\n=== Running model: " + runPlan.modelId() + " ===");
+                    List<ModelResponse> responses = executeBatchPipeline(runPlan.provider(), context.requests,
+                            runPlan.modelId());
+                    runResults.add(evaluateResults(allSuites, responses, runPlan.modelId()));
+                }
             }
 
-            // Step 5: Evaluate Results
-            evaluateResults(mapper, allSuites, responses);
+            // Step 5: Write Aggregate Results
+            writeResultsArchive(mapper, selectedModelIds, runResults);
 
         } catch (Exception e) {
             System.err.println("Fatal error during execution: " + e.getMessage());
@@ -113,6 +131,9 @@ public class App implements Runnable {
         List<ModelRequest> requests = new ArrayList<>();
         int totalInputTokens = 0;
         int totalExpectedOutputTokens = 0;
+    }
+
+    private record ModelRunPlan(String modelId, AiProvider provider) {
     }
 
     private PipelineContext buildRequestsContext(List<TestSuite> allSuites) {
@@ -140,60 +161,56 @@ public class App implements Runnable {
     }
 
     @SuppressWarnings("resource")
-    private boolean confirmExecutionCost(AiProvider provider, PipelineContext context) {
-        // Skip prompt for mock (it's free anyway)
-        if (modelId.equals("mock") || autoAccept) {
+    private boolean confirmExecutionCost(List<ModelRunPlan> runPlans, PipelineContext context) {
+        if (autoAccept) {
             return true;
         }
 
-        double estimatedCost = provider.calculateEstimatedCost(context.totalInputTokens,
-                context.totalExpectedOutputTokens);
-        System.out.printf("\n--- COST ESTIMATION ---\n");
-        System.out.printf("Total Input Tokens (est):  %d\n", context.totalInputTokens);
-        System.out.printf("Total Output Tokens (est): %d\n", context.totalExpectedOutputTokens);
-        System.out.printf("Estimated Batch Cost:      $%.4f\n\n", estimatedCost);
+        List<ModelRunPlan> billableRunPlans = runPlans.stream()
+                .filter(runPlan -> !runPlan.modelId().equals("mock"))
+                .toList();
+        if (billableRunPlans.isEmpty()) {
+            return true;
+        }
 
-        System.out.print("This will require " + context.requests.size() + " requests to " + modelId +
-                " and will cost an estimated $" + String.format("%.2f", estimatedCost)
-                + ". Do you accept? (y/N): ");
+        double estimatedCost = 0.0;
+        for (ModelRunPlan runPlan : billableRunPlans) {
+            estimatedCost += runPlan.provider().calculateEstimatedCost(context.totalInputTokens,
+                    context.totalExpectedOutputTokens);
+        }
+
+        System.out.printf("\n--- COST ESTIMATION ---\n");
+        System.out.printf("Per-Model Input Tokens (est):   %d\n", context.totalInputTokens);
+        System.out.printf("Per-Model Output Tokens (est):  %d\n", context.totalExpectedOutputTokens);
+        System.out.printf("Requests Per Model:             %d\n", context.requests.size());
+        System.out.printf("Total Model Runs:               %d\n", runPlans.size());
+        System.out.printf("Total Requests Across Models:   %d\n", context.requests.size() * runPlans.size());
+        System.out.println("Estimated Costs:");
+        for (ModelRunPlan runPlan : runPlans) {
+            double modelCost = runPlan.modelId().equals("mock")
+                    ? 0.0
+                    : runPlan.provider().calculateEstimatedCost(context.totalInputTokens,
+                            context.totalExpectedOutputTokens);
+            System.out.printf("  %s: $%.4f\n", runPlan.modelId(), modelCost);
+        }
+        System.out.printf("Estimated Total Cost:           $%.4f\n\n", estimatedCost);
+
+        System.out.print("This will execute PoliBench against " + runPlans.size() + " model(s). Continue? (y/N): ");
         Scanner scanner = new Scanner(System.in);
         String answer = scanner.nextLine().trim().toLowerCase();
         return answer.equals("y") || answer.equals("yes");
     }
 
-    private List<ModelResponse> executeBatchPipeline(AiProvider provider, List<ModelRequest> requests)
+    private List<ModelResponse> executeBatchPipeline(AiProvider provider, List<ModelRequest> requests, String modelId)
             throws Exception {
-        File batchFile = new File("results", "polibench_batch_input_" + System.currentTimeMillis() + ".jsonl");
-        ensureParentDirectoryExists(batchFile);
-        provider.generateBatchFile(requests, batchFile.getPath());
-        System.out.println("Generated batch input file: " + batchFile.getAbsolutePath());
-
-        String batchId = provider.submitBatch(batchFile.getPath());
-        System.out.println("Started batch execution with ID: " + batchId);
-
-        boolean isComplete = false;
-        while (!isComplete) {
-            System.out.println("Polling batch status...");
-            isComplete = provider.isBatchComplete(batchId);
-            if (!isComplete) {
-                if (!modelId.equals("mock")) {
-                    Thread.sleep(30000);
-                } else {
-                    Thread.sleep(1000);
-                }
-            }
-        }
-
-        System.out.println("Batch execution complete. Fetching results...");
-        return provider.fetchBatchResults(batchId);
+        System.out.println("Executing " + requests.size() + " requests in-memory for model: " + modelId);
+        return provider.executeRequests(requests);
     }
 
-    private void evaluateResults(ObjectMapper mapper, List<TestSuite> allSuites, List<ModelResponse> responses)
-            throws Exception {
+    private BenchmarkResult evaluateResults(List<TestSuite> allSuites, List<ModelResponse> responses, String modelId) {
         System.out.println("\nStarting Evaluation Engine...");
         BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
-        BenchmarkResult finalResult = new BenchmarkResult(modelId, java.time.Instant.now().toString());
-        finalResult.setSystemPrompt(BillPrompt.getPromptForBill(false, false));
+        BenchmarkResult finalResult = new BenchmarkResult(modelId, BillPrompt.getPromptForBill(false, false));
 
         Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
                 .flatMap(suite -> suite.getTasks().stream()
@@ -236,8 +253,16 @@ public class App implements Runnable {
                     new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks, taskResults));
         }
 
+        return finalResult;
+    }
+
+    private void writeResultsArchive(ObjectMapper mapper, List<String> selectedModelIds, List<BenchmarkResult> runResults)
+            throws Exception {
         ensureParentDirectoryExists(outputFile);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, finalResult);
+        BenchmarkResultsArchive archive = new BenchmarkResultsArchive(java.time.Instant.now().toString(),
+                selectedModelIds,
+                runResults);
+        mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, archive);
         System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
     }
 
@@ -276,5 +301,29 @@ public class App implements Runnable {
         if (parentDir != null && !parentDir.exists()) {
             parentDir.mkdirs();
         }
+    }
+
+    private List<String> getSelectedModelIds() {
+        return normalizeModelIds(modelIds);
+    }
+
+    static List<String> normalizeModelIds(List<String> rawModelIds) {
+        LinkedHashSet<String> normalizedModels = new LinkedHashSet<>();
+        for (String rawModelId : rawModelIds) {
+            if (rawModelId == null) {
+                continue;
+            }
+
+            String normalizedModelId = rawModelId.trim();
+            if (!normalizedModelId.isEmpty()) {
+                normalizedModels.add(normalizedModelId);
+            }
+        }
+
+        if (normalizedModels.isEmpty()) {
+            normalizedModels.add("mock");
+        }
+
+        return new ArrayList<>(normalizedModels);
     }
 }

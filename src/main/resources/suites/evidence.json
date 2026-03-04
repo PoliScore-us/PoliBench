@@ -17,6 +17,16 @@
             "billText": "Section 303. The Department of Health shall establish a grant program for pediatric providers to send text-message reminders for scheduled childhood vaccination visits. The findings for this section reference randomized evaluations and state pilot programs reporting improved attendance at preventive care appointments.",
             "expected": "PASS",
             "rationale": "The intervention is supported by randomized evaluations and directly relevant pilot evidence."
+        },
+        {
+            "billText": "Section 404. The Department of Labor shall require all state-funded job training programs to replace instructor feedback with artificial-intelligence career horoscopes. Legislative findings cite a private vendor white paper comparing program graduates who voluntarily used the horoscope tool with those who did not, without random assignment or controls for prior education, and a celebrity podcast episode describing the tool as transformational.",
+            "expected": "FAIL",
+            "rationale": "The supporting material is weak and confounded, relying on vendor marketing and self-selected anecdotes rather than credible causal evidence."
+        },
+        {
+            "billText": "Section 405. The Department of Revenue shall create a text-message and simplified-letter reminder system for households eligible for the state earned income tax credit but at risk of failing to claim it. Findings cite randomized field experiments in tax administration and benefits enrollment, plus results from a prior state pilot showing increased take-up among eligible filers when reminders used plain language and prepopulated eligibility information.",
+            "expected": "PASS",
+            "rationale": "The bill relies on directly relevant experimental and pilot evidence tied to the same administrative behavior it seeks to improve."
         }
     ]
 }

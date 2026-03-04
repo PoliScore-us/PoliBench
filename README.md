@@ -2,9 +2,9 @@
 
 PoliBench is a 🚨WORK IN PROGRESS🚨
 
-PoliBench is a Java CLI benchmark for evaluating whether an AI model can reason about legislation using the seven structural pillars defined by the PoliScore framework.
+PoliBench is a Java CLI benchmark for evaluating whether AI models can reason about legislation using the seven structural pillars defined by the PoliScore framework.
 
-It packages small benchmark suites, sends them through openrouter.ai, and grades the returned responses into a `polibench_results.json` file with per-pillar scores.
+It packages small benchmark suites, sends them through openrouter.ai, and grades the returned responses into a `polibench_results.json` archive with the evaluated model list and per-model, per-pillar scores.
 
 ## What It Supports
 
@@ -25,7 +25,7 @@ Out of the box, PoliBench can:
 - generate batch requests for supported models
 - execute OpenRouter chat-completion requests against any OpenRouter model ID
 - parse an existing OpenRouter output file with `--results-only`
-- emit a machine-readable results file with per-pillar pass rates
+- emit a machine-readable results file with the evaluated model list and per-model pass rates
 - estimate batch cost before execution
 - run fully offline in mock mode for local testing
 
@@ -70,16 +70,16 @@ The packaged CLI jar is written to `target/`.
 The CLI currently exposes:
 
 ```text
-Usage: polibench [-hVy] [-m=<modelId>] [-o=<outputFile>]
+Usage: polibench [-hVy] [-m=<modelIds>]... [-o=<outputFile>]
                  [--results-only=<existingBatchResult>] [--suites=<suitesDir>]
 ```
 
 Options:
 
-- `--model` / `-m`: model identifier, currently `mock` or any OpenRouter model ID such as `openai/gpt-5.2`
+- `--model` / `-m`: one or more model identifiers; repeat the option or pass a comma-separated list such as `--model mock --model openai/gpt-5.2` or `--model mock,openai/gpt-5.2`
 - `--output` / `-o`: output path for the final `polibench_results.json`
 - `--suites`: directory of suite JSON files; if omitted, the bundled suites are used
-- `--results-only`: skip execution and grade an existing batch output file
+- `--results-only`: skip execution and grade an existing batch output file; this currently supports exactly one model
 - `--yes` / `-y`: auto-accept the estimated execution cost
 
 ## Example Commands
@@ -88,6 +88,12 @@ Run the bundled benchmark in mock mode:
 
 ```bash
 java -jar target/polibench-1.0-SNAPSHOT.jar --model mock --yes
+```
+
+Run the bundled benchmark against multiple models in one archive:
+
+```bash
+java -jar target/polibench-1.0-SNAPSHOT.jar --model mock,openai/gpt-5.2 --yes
 ```
 
 This writes to:
@@ -191,13 +197,27 @@ Notes:
 
 ## Output
 
-The result file is a JSON object keyed by pillar, with:
+The result file is a JSON archive with:
+
+- `runDate`: when the archive was written
+- `models`: the ordered list of evaluated model IDs
+- `results`: one entry per model run
+
+Each item in `results` contains:
+
+- `modelId`
+- `runDate`
+- `systemPrompt`
+- `pillarScores`
+
+Each `pillarScores` entry contains:
 
 - `totalTasks`
 - `passedTasks`
 - `scorePercentage`
+- `tasks`
 
-This makes it suitable for downstream ingestion by other PoliScore tooling.
+This preserves the benchmark details for each model while making model-to-model comparisons explicit in a single archive.
 
 ## Current Limits
 

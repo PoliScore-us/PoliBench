@@ -17,6 +17,16 @@
             "billText": "Section 301. If a public school or licensed child care facility records drinking water lead levels above the federal action level in two consecutive testing periods, the responsible water utility shall replace the lead service line serving that facility within 24 months. The Department of Health shall administer grants for replacement costs and shall require follow-up testing after completion.",
             "expected": "PASS",
             "rationale": "The intervention directly addresses the identified lead exposure problem with targeted remediation and follow-up verification."
+        },
+        {
+            "billText": "Section 401. Legislative findings state that the state continues to face a shortage of nurses willing to practice in remote counties where vacancy rates are highest. In order to address that shortage, a sales-tax holiday for school supplies shall be held during the first weekend of August each year.",
+            "expected": "FAIL",
+            "rationale": "The chosen tax holiday does not plausibly affect the identified workforce recruitment bottleneck in remote health care settings."
+        },
+        {
+            "billText": "Section 402. Legislative findings report that missed court appearances in misdemeanor cases are driven in part by defendants not receiving timely reminders or not having transportation arranged. Each trial court shall, at the time of release, collect a preferred phone number or mailing address for reminder notices, send reminders seven days and 24 hours before each hearing, and offer transit vouchers for indigent defendants when lack of transportation is documented.",
+            "expected": "PASS",
+            "rationale": "The policy targets two concrete causes of missed appearances, notice failure and transportation barriers, using mechanisms tied to the diagnosed problem."
         }
     ]
 }

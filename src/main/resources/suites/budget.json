@@ -32,6 +32,16 @@
             "billText": "Section 303. Findings. The Department of Transportation has found in its 2026 report titled Bridge Evaluations and Other Purposes that several bridges in the metro area are in dire need of repairs. The Department of Transportation shall issue a time-limited infrastructure bond to finance bridge repair projects identified in the state asset management plan. Contracts awarded under this section shall use competitive bidding, and the department shall publish an annual audit of expenditures and project status before additional appropriations are released.",
             "expected": "PASS",
             "rationale": "Time-limited financing for a defined capital project is paired with procurement controls, audits, and release conditions."
+        },
+        {
+            "billText": "Section 404. A permanent universal child allowance of $1,200 per month per child is established. The allowance shall be paid from annual proceeds of mineral-rights lease auctions and legal settlements, and if those receipts are insufficient in any year, the State Treasurer shall transfer such additional sums from the general fund as are necessary to maintain full benefit levels.",
+            "expected": "FAIL",
+            "rationale": "A permanent entitlement backed by volatile one-time revenue and unlimited general-fund backfill creates unstable and open-ended fiscal exposure."
+        },
+        {
+            "billText": "Section 405. The Rural Water Repair Grant Program is established for five fiscal years. Annual awards may not exceed the amount appropriated for the program, grants shall require a 25 percent local match unless waived for fiscal distress, and if eligible requests exceed appropriations, award amounts shall be prorated under a published priority formula rather than creating a state obligation beyond available funds.",
+            "expected": "PASS",
+            "rationale": "The program is explicitly capped by appropriations, uses cost sharing, and avoids open-ended obligations when demand exceeds funding."
         }
     ]
 }

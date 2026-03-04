@@ -17,6 +17,16 @@
             "billText": "Section 303. State agencies shall convert public-facing forms to accessible digital formats over a four-year implementation period. The Department of Administration shall provide shared procurement and technical support, and agencies shall prioritize forms associated with the highest-volume public services during the first two years.",
             "expected": "PASS",
             "rationale": "Phased implementation, prioritization, and shared support make the rollout achievable."
+        },
+        {
+            "billText": "Section 404. Not later than 18 months after enactment, every public high school shall offer in-person instruction in Mandarin, Arabic, Russian, American Sign Language, advanced computer science, and calculus, with a full-time licensed instructor assigned to each subject regardless of school size or current staffing levels.",
+            "expected": "FAIL",
+            "rationale": "The mandate assumes a statewide supply of specialized instructors and scheduling capacity that many schools are unlikely to secure on that timeline."
+        },
+        {
+            "billText": "Section 405. The Department of Corrections shall pilot tele-mental-health services at six facilities over three years. The department may phase facilities in by security level, use existing prison clinic rooms, contract through the statewide telehealth platform, and submit staffing and utilization reports every six months before expanding the pilot.",
+            "expected": "PASS",
+            "rationale": "A limited pilot using existing infrastructure, phased rollout, and reporting checkpoints is operationally realistic."
         }
     ]
 }

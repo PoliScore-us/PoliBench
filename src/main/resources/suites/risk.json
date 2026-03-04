@@ -17,6 +17,16 @@
             "billText": "Section 303. The Housing Stability Department shall administer a two-year pilot program for emergency rental assistance. Program expenditures are limited to the amounts appropriated for the pilot, applicant verification and fraud screening are required, the department shall submit a program evaluation after 18 months, and the pilot shall terminate on schedule unless reauthorized by the legislature.",
             "expected": "PASS",
             "rationale": "The program is bounded, monitored, and subject to fraud controls, evaluation, and sunset."
+        },
+        {
+            "billText": "Section 404. The state shall guarantee 95 percent of principal on all loans issued by participating lenders to newly formed technology firms. Lenders may rely on borrower self-certification of projected revenue, and no portfolio concentration limits or clawback provisions shall apply to repeated defaults.",
+            "expected": "FAIL",
+            "rationale": "The guarantee structure invites adverse selection and weak underwriting by socializing downside risk without strong lender discipline or concentration controls."
+        },
+        {
+            "billText": "Section 405. The Department of Forestry shall create a three-year pilot grant for home-hardening in wildfire-prone areas. Grants are limited by annual appropriations, homeowners must complete approved mitigation measures before reimbursement, the department shall publish risk-reduction criteria, and the pilot shall pause automatically if post-award inspections show noncompliance above 10 percent in any grant cycle.",
+            "expected": "PASS",
+            "rationale": "The pilot includes appropriation limits, verified mitigation requirements, published criteria, and a built-in circuit breaker if the program begins to drift."
         }
     ]
 }
