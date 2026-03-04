@@ -11,6 +11,16 @@ import us.poliscore.polibench.models.Task;
 
 public class BenchmarkEvaluator {
 
+    public record EvaluationOutcome(boolean passed, String failureReason) {
+        public static EvaluationOutcome pass() {
+            return new EvaluationOutcome(true, null);
+        }
+
+        public static EvaluationOutcome fail(String reason) {
+            return new EvaluationOutcome(false, reason);
+        }
+    }
+
     /**
      * Evaluates a model's response by parsing for the mandatory `<PASS>` or
      * `<FAIL>`
@@ -18,9 +28,13 @@ public class BenchmarkEvaluator {
      * expected outcome.
      */
     public boolean evaluate(Task task, ModelResponse response) {
+        return evaluateWithOutcome(task, response).passed();
+    }
+
+    public EvaluationOutcome evaluateWithOutcome(Task task, ModelResponse response) {
         if (response.getContent() == null || response.getContent().isEmpty()
                 || response.getContent().startsWith("ERROR:")) {
-            return false;
+            return EvaluationOutcome.fail("Response content was blank or marked as an error payload.");
         }
 
         if (task.getPillar() == null) {
@@ -37,20 +51,26 @@ public class BenchmarkEvaluator {
         try {
             interpretation = parseInterpretation(task, response);
         } catch (Exception e) {
-            System.err.println("WARNING: Task [" + task.getId() + "] response could not be parsed by BillInterpretationParser: "
-                    + e.getMessage());
-            return false;
+            String reason = "Response could not be parsed by BillInterpretationParser: " + e.getMessage();
+            System.err.println("WARNING: Task [" + task.getId() + "] " + reason);
+            return EvaluationOutcome.fail(reason);
         }
 
         Boolean actualPass = interpretation.getStructuralAnalysisPassFail().get(toStructuralAnalysis(task.getPillar()));
         if (actualPass == null) {
-            System.err.println(
-                    "WARNING: Task [" + task.getId() + "] parsed response was missing structural analysis output for pillar "
-                            + task.getPillar().getValue() + ".");
-            return false;
+            String reason = "Parsed response was missing structural analysis output for pillar "
+                    + task.getPillar().getValue() + ".";
+            System.err.println("WARNING: Task [" + task.getId() + "] " + reason);
+            return EvaluationOutcome.fail(reason);
         }
 
-        return expectedOutcome.equals("PASS") == actualPass;
+        boolean expectedPass = expectedOutcome.equals("PASS");
+        if (expectedPass == actualPass) {
+            return EvaluationOutcome.pass();
+        }
+
+        return EvaluationOutcome.fail("Expected " + expectedOutcome + " but model output resolved to "
+                + (actualPass ? "PASS" : "FAIL") + ".");
     }
 
     private BillInterpretation parseInterpretation(Task task, ModelResponse response) {

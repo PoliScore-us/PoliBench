@@ -16,12 +16,13 @@ import us.poliscore.polibench.models.Pillar;
  */
 @Data
 @RequiredArgsConstructor
+@NoArgsConstructor
 public class BenchmarkResult {
     @NonNull private String modelId;
-    @NonNull private String systemPrompt;
     @NonNull private Map<Pillar, PillarResult> pillarScores = new HashMap<Pillar, PillarResult>();
 
     @Data
+    @NoArgsConstructor
     public static class PillarResult {
         private int totalTasks;
         private int passedTasks;

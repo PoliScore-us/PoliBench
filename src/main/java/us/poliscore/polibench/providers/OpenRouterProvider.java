@@ -21,7 +21,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -213,10 +215,15 @@ public class OpenRouterProvider implements AiProvider {
         bodyNode.put("model", modelId);
         bodyNode.put("temperature", 0.0);
         bodyNode.set("usage", mapper.valueToTree(Map.of("include", true)));
+        if (supportsReasoningEffort(modelId)) {
+            bodyNode.putObject("reasoning").put("effort", "medium");
+        }
         bodyNode.set("messages", mapper.valueToTree(List.of(
                 Map.of("role", "system", "content", modelRequest.getSystemPrompt()),
                 Map.of("role", "user", "content", modelRequest.getUserPrompt()))));
 
+        System.out.println("Sending request to openrouter on model " + modelId);
+        
         HttpResponse<String> response;
         try {
             response = httpClient.send(buildCompletionRequest(bodyNode), HttpResponse.BodyHandlers.ofString());
@@ -266,17 +273,88 @@ public class OpenRouterProvider implements AiProvider {
                     + "] is missing completion choices: " + summarizeBody(responseBody.toString()));
         }
 
-        String content = "";
-        JsonNode contentNode = choicesNode.get(0).path("message").path("content");
-        if (contentNode.isTextual()) {
-            content = contentNode.asText();
-        } else if (!contentNode.isMissingNode() && !contentNode.isNull()) {
-            content = contentNode.toString();
+        String content = extractChoiceContent(choicesNode.get(0));
+        if (content.isBlank()) {
+            System.err.println("WARNING: OpenRouter response content was empty for task [" + customId
+                    + "]. Persisting raw response body for downstream inspection.");
+            content = responseBody.toString();
         }
 
         int promptTokens = responseBody.path("usage").path("prompt_tokens").asInt();
         int completionTokens = responseBody.path("usage").path("completion_tokens").asInt();
         return new ModelResponse(customId, content, promptTokens, completionTokens);
+    }
+
+    private String extractChoiceContent(JsonNode choiceNode) {
+        JsonNode messageNode = choiceNode.path("message");
+        String content = extractTextPayload(messageNode.path("content"));
+        if (!content.isBlank()) {
+            return content;
+        }
+
+        content = extractTextPayload(choiceNode.path("text"));
+        if (!content.isBlank()) {
+            return content;
+        }
+
+        content = extractTextPayload(messageNode.path("output_text"));
+        if (!content.isBlank()) {
+            return content;
+        }
+
+        content = extractTextPayload(messageNode.path("reasoning"));
+        return content;
+    }
+
+    private String extractTextPayload(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) {
+            return "";
+        }
+
+        if (node.isTextual()) {
+            return node.asText();
+        }
+
+        if (node.isArray()) {
+            StringBuilder combined = new StringBuilder();
+            for (JsonNode child : node) {
+                appendText(combined, extractTextPayload(child));
+            }
+            return combined.toString().trim();
+        }
+
+        if (node.isObject()) {
+            StringBuilder combined = new StringBuilder();
+            appendText(combined, extractTextPayload(node.path("text")));
+            appendText(combined, extractTextPayload(node.path("content")));
+            appendText(combined, extractTextPayload(node.path("output_text")));
+            appendText(combined, extractTextPayload(node.path("parts")));
+            appendText(combined, extractTextPayload(node.path("value")));
+
+            if (combined.length() > 0) {
+                return combined.toString().trim();
+            }
+
+            node.fields().forEachRemaining(field -> {
+                if (field.getValue().isTextual()) {
+                    appendText(combined, field.getValue().asText());
+                }
+            });
+
+            return combined.toString().trim();
+        }
+
+        return "";
+    }
+
+    private void appendText(StringBuilder target, String chunk) {
+        if (chunk == null || chunk.isBlank()) {
+            return;
+        }
+        if (target.length() > 0) {
+            target.append('\n');
+        }
+        target.append(chunk.trim());
     }
 
     private HttpRequest buildCompletionRequest(JsonNode bodyNode) throws Exception {
@@ -321,16 +399,12 @@ public class OpenRouterProvider implements AiProvider {
             }
 
             JsonNode root = mapper.readTree(response.body());
-            for (JsonNode modelNode : root.path("data")) {
-                String id = modelNode.path("id").asText();
-                String canonicalSlug = modelNode.path("canonical_slug").asText();
-
-                if (modelId.equals(id) || modelId.equals(canonicalSlug)) {
-                    JsonNode pricing = modelNode.path("pricing");
-                    promptCostPerToken = parseDecimal(pricing.path("prompt").asText());
-                    completionCostPerToken = parseDecimal(pricing.path("completion").asText());
-                    return;
-                }
+            JsonNode pricingNode = findPricingEntry(root.path("data"), modelId);
+            if (pricingNode != null) {
+                JsonNode pricing = pricingNode.path("pricing");
+                promptCostPerToken = parseDecimal(pricing.path("prompt").asText());
+                completionCostPerToken = parseDecimal(pricing.path("completion").asText());
+                return;
             }
 
             System.err.println("WARNING: No OpenRouter pricing entry found for model " + modelId
@@ -346,6 +420,128 @@ public class OpenRouterProvider implements AiProvider {
             return BigDecimal.ZERO;
         }
         return new BigDecimal(value);
+    }
+
+    static boolean supportsReasoningEffort(String candidateModelId) {
+        if (candidateModelId == null) {
+            return false;
+        }
+
+        String normalized = normalizeModelRef(candidateModelId);
+        return normalized.startsWith("openai/gpt-5");
+    }
+
+    static JsonNode findPricingEntry(JsonNode models, String requestedModelId) {
+        if (models == null || !models.isArray() || requestedModelId == null || requestedModelId.isBlank()) {
+            return null;
+        }
+
+        String requested = normalizeModelRef(requestedModelId);
+        List<ModelMatchVariant> requestedVariants = requestedVariants(requested);
+
+        JsonNode bestNode = null;
+        int bestScore = Integer.MAX_VALUE;
+
+        for (JsonNode modelNode : models) {
+            String id = normalizeModelRef(modelNode.path("id").asText(""));
+            String canonical = normalizeModelRef(modelNode.path("canonical_slug").asText(""));
+            int score = Math.min(
+                    scorePricingMatch(requestedVariants, id),
+                    scorePricingMatch(requestedVariants, canonical));
+            if (score < bestScore) {
+                bestScore = score;
+                bestNode = modelNode;
+            }
+        }
+
+        return bestScore == Integer.MAX_VALUE ? null : bestNode;
+    }
+
+    private static int scorePricingMatch(List<ModelMatchVariant> requestedVariants, String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            return Integer.MAX_VALUE;
+        }
+
+        int bestScore = Integer.MAX_VALUE;
+        String candidateBase = stripDatedSuffix(candidate);
+
+        for (ModelMatchVariant variant : requestedVariants) {
+            String requested = variant.value();
+            String requestedBase = stripDatedSuffix(requested);
+            int score = Integer.MAX_VALUE;
+
+            if (candidate.equals(requested)) {
+                score = 0;
+            } else if (candidateBase.equals(requestedBase)) {
+                score = 10;
+            } else if (candidate.startsWith(requested + "-")) {
+                score = 20 + (candidate.length() - requested.length());
+            } else if (candidateBase.startsWith(requestedBase + "-")) {
+                score = 40 + (candidateBase.length() - requestedBase.length());
+            }
+
+            if (score != Integer.MAX_VALUE) {
+                score += variant.penalty();
+                if (score < bestScore) {
+                    bestScore = score;
+                }
+            }
+        }
+
+        return bestScore;
+    }
+
+    private static String normalizeModelRef(String value) {
+        if (value == null) {
+            return "";
+        }
+
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        int variantSeparator = normalized.indexOf(':');
+        if (variantSeparator > 0) {
+            normalized = normalized.substring(0, variantSeparator);
+        }
+        return normalized;
+    }
+
+    private static String stripDatedSuffix(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return value
+                .replaceFirst("-\\d{8}$", "")
+                .replaceFirst("-\\d{4}-\\d{2}-\\d{2}$", "");
+    }
+
+    private static List<ModelMatchVariant> requestedVariants(String requested) {
+        LinkedHashMap<String, Integer> variants = new LinkedHashMap<>();
+        addVariant(variants, requested, 0);
+
+        String stripped = stripDatedSuffix(requested);
+        addVariant(variants, stripped, 5);
+
+        String collapsed = collapseOpenAiGpt5Version(stripped);
+        if (!collapsed.equals(stripped)) {
+            addVariant(variants, collapsed, 35);
+        }
+
+        return variants.entrySet().stream()
+                .map(entry -> new ModelMatchVariant(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private static void addVariant(LinkedHashMap<String, Integer> variants, String value, int penalty) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        variants.merge(value, penalty, Math::min);
+    }
+
+    private static String collapseOpenAiGpt5Version(String value) {
+        return value
+                .replaceFirst("^openai/gpt-5\\.[12]-mini$", "openai/gpt-5-mini")
+                .replaceFirst("^openai/gpt-5\\.[12]$", "openai/gpt-5");
     }
 
     private Exception toException(String message, Throwable error) {
@@ -407,5 +603,8 @@ public class OpenRouterProvider implements AiProvider {
     }
 
     private record RequestOutcome(ModelResponse response, String resultLine) {
+    }
+
+    private record ModelMatchVariant(String value, int penalty) {
     }
 }

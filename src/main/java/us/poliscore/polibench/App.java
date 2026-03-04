@@ -2,6 +2,8 @@ package us.poliscore.polibench;
 
 import java.io.File;
 import java.io.InputStream;
+import java.io.BufferedWriter;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -9,6 +11,13 @@ import java.util.Map;
 import java.util.Scanner;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 import com.fasterxml.jackson.core.json.JsonReadFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,6 +41,8 @@ import us.poliscore.polibench.providers.OpenRouterProvider;
 
 @Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against one or more AI models via batch API.")
 public class App implements Runnable {
+    static final DateTimeFormatter RUN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private static final String[] DEFAULT_SUITE_FILES = {
             "precision.json",
             "evidence.json",
@@ -97,7 +108,7 @@ public class App implements Runnable {
                 AiProvider provider = getProvider(modelId);
                 System.out.println("Parsing existing batch results from: " + existingBatchResult.getAbsolutePath());
                 List<ModelResponse> responses = provider.parseBatchResults(existingBatchResult.getAbsolutePath());
-                runResults.add(evaluateResults(allSuites, responses, modelId));
+                runResults.add(evaluateResults(mapper, allSuites, responses, modelId));
             } else {
                 List<ModelRunPlan> runPlans = selectedModelIds.stream()
                         .map(modelId -> new ModelRunPlan(modelId, getProvider(modelId)))
@@ -114,7 +125,7 @@ public class App implements Runnable {
                     System.out.println("\n=== Running model: " + runPlan.modelId() + " ===");
                     List<ModelResponse> responses = executeBatchPipeline(runPlan.provider(), context.requests,
                             runPlan.modelId());
-                    runResults.add(evaluateResults(allSuites, responses, runPlan.modelId()));
+                    runResults.add(evaluateResults(mapper, allSuites, responses, runPlan.modelId()));
                 }
             }
 
@@ -207,10 +218,12 @@ public class App implements Runnable {
         return provider.executeRequests(requests);
     }
 
-    private BenchmarkResult evaluateResults(List<TestSuite> allSuites, List<ModelResponse> responses, String modelId) {
+    private BenchmarkResult evaluateResults(ObjectMapper mapper, List<TestSuite> allSuites, List<ModelResponse> responses,
+            String modelId) {
         System.out.println("\nStarting Evaluation Engine...");
         BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
-        BenchmarkResult finalResult = new BenchmarkResult(modelId, BillPrompt.getPromptForBill(false, false));
+        BenchmarkResult finalResult = new BenchmarkResult(modelId);
+        FailedResponseWriter failedResponseWriter = new FailedResponseWriter(mapper, modelId, resolveResultsDirectory());
 
         Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
                 .flatMap(suite -> suite.getTasks().stream()
@@ -218,52 +231,90 @@ public class App implements Runnable {
                 .collect(Collectors.groupingBy(Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
-        for (Map.Entry<Pillar, List<Task>> entry : tasksByPillar.entrySet()) {
-            Pillar pillar = entry.getKey();
-            int totalPillarTasks = entry.getValue().size();
-            int passedTasks = 0;
-            List<BenchmarkResult.TaskResult> taskResults = new ArrayList<>();
+        try {
+            for (Map.Entry<Pillar, List<Task>> entry : tasksByPillar.entrySet()) {
+                Pillar pillar = entry.getKey();
+                int totalPillarTasks = entry.getValue().size();
+                int passedTasks = 0;
+                List<BenchmarkResult.TaskResult> taskResults = new ArrayList<>();
 
-            for (Task task : entry.getValue()) {
-                ModelResponse resp = responses.stream()
-                        .filter(r -> r.getRequestId().equals(task.getId()))
-                        .findFirst()
-                        .orElse(null);
+                for (Task task : entry.getValue()) {
+                    ModelResponse resp = responses.stream()
+                            .filter(r -> r.getRequestId().equals(task.getId()))
+                            .findFirst()
+                            .orElse(null);
 
-                String billText = task.getBillText();
+                    String billText = task.getBillText();
 
-                boolean passed = false;
-                if (resp != null && evaluator.evaluate(task, resp)) {
-                    passedTasks++;
-                    passed = true;
-                } else if (resp == null) {
-                    System.err.println("WARNING: Missing response for task ID: " + task.getId());
+                    boolean passed = false;
+                    String failureReason = "Missing response for task ID: " + task.getId();
+                    if (resp != null) {
+                        BenchmarkEvaluator.EvaluationOutcome outcome = evaluator.evaluateWithOutcome(task, resp);
+                        passed = outcome.passed();
+                        if (passed) {
+                            passedTasks++;
+                        } else {
+                            failureReason = outcome.failureReason();
+                        }
+                    } else {
+                        System.err.println("WARNING: " + failureReason);
+                    }
+
+                    if (!passed) {
+                        failedResponseWriter.write(task, failureReason, resp);
+                    }
+
+                    taskResults.add(new BenchmarkResult.TaskResult(
+                            task.getId(),
+                            billText,
+                            task.getExpected(),
+                            task.getRationale(),
+                            resp != null ? resp.getContent() : null,
+                            passed));
                 }
 
-                taskResults.add(new BenchmarkResult.TaskResult(
-                		task.getId(),
-                		billText,
-                        task.getExpected(),
-                        task.getRationale(),
-                        resp != null ? resp.getContent() : null,
-                        passed));
+                finalResult.getPillarScores().put(pillar,
+                        new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks, taskResults));
             }
-
-            finalResult.getPillarScores().put(pillar,
-                    new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks, taskResults));
+        } finally {
+            failedResponseWriter.close();
         }
-
         return finalResult;
+    }
+
+    private Path resolveResultsDirectory() {
+        File targetOutput = outputFile != null ? outputFile.getAbsoluteFile() : new File("results/polibench_results.json");
+        File parentDir = targetOutput.getParentFile();
+        if (parentDir != null) {
+            return parentDir.toPath();
+        }
+        return Path.of("results");
     }
 
     private void writeResultsArchive(ObjectMapper mapper, List<String> selectedModelIds, List<BenchmarkResult> runResults)
             throws Exception {
         ensureParentDirectoryExists(outputFile);
-        BenchmarkResultsArchive archive = new BenchmarkResultsArchive(java.time.Instant.now().toString(),
+        String runDate = LocalDate.now(ZoneId.systemDefault()).format(RUN_DATE_FORMATTER);
+        BenchmarkResultsArchive archive = mergeArchivesForDate(runDate,
+                readExistingArchive(mapper),
                 selectedModelIds,
                 runResults);
         mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, archive);
         System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
+    }
+
+    private BenchmarkResultsArchive readExistingArchive(ObjectMapper mapper) {
+        if (outputFile == null || !outputFile.exists() || !outputFile.isFile()) {
+            return null;
+        }
+
+        try {
+            return mapper.readValue(outputFile, BenchmarkResultsArchive.class);
+        } catch (Exception e) {
+            System.err.println("WARNING: Could not read existing results archive at " + outputFile.getAbsolutePath()
+                    + ". A new archive will be written. Reason: " + e.getMessage());
+            return null;
+        }
     }
 
     private AiProvider getProvider(String modelId) {
@@ -325,5 +376,132 @@ public class App implements Runnable {
         }
 
         return new ArrayList<>(normalizedModels);
+    }
+
+    static BenchmarkResultsArchive mergeArchivesForDate(String runDate,
+            BenchmarkResultsArchive existingArchive,
+            List<String> selectedModelIds,
+            List<BenchmarkResult> runResults) {
+        List<String> safeSelectedModels = selectedModelIds == null ? List.of() : selectedModelIds;
+        List<BenchmarkResult> safeRunResults = runResults == null ? List.of() : runResults;
+
+        if (existingArchive == null || !runDate.equals(normalizeRunDate(existingArchive.getRunDate()))) {
+            return new BenchmarkResultsArchive(runDate, new ArrayList<>(safeSelectedModels), BillPrompt.getPromptForBill(false, false), new ArrayList<>(safeRunResults));
+        }
+
+        LinkedHashSet<String> mergedModels = new LinkedHashSet<>();
+        if (existingArchive.getModels() != null) {
+            mergedModels.addAll(existingArchive.getModels());
+        }
+        mergedModels.addAll(safeSelectedModels);
+
+        List<BenchmarkResult> mergedResults = new ArrayList<>();
+        if (existingArchive.getResults() != null) {
+            mergedResults.addAll(existingArchive.getResults());
+        }
+        mergedResults.addAll(safeRunResults);
+
+        return new BenchmarkResultsArchive(runDate, new ArrayList<>(mergedModels), BillPrompt.getPromptForBill(false, false), mergedResults);
+    }
+
+    static String normalizeRunDate(String runDate) {
+        if (runDate == null || runDate.isBlank()) {
+            return "";
+        }
+
+        String trimmed = runDate.trim();
+        try {
+            return LocalDate.parse(trimmed, RUN_DATE_FORMATTER).format(RUN_DATE_FORMATTER);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return LocalDate.parse(trimmed).format(RUN_DATE_FORMATTER);
+        } catch (Exception ignored) {
+        }
+
+        try {
+            return Instant.parse(trimmed).atZone(ZoneId.systemDefault()).toLocalDate().format(RUN_DATE_FORMATTER);
+        } catch (Exception ignored) {
+        }
+
+        return trimmed;
+    }
+
+    private static final class FailedResponseWriter {
+        private final ObjectMapper mapper;
+        private final String modelId;
+        private final Path resultsDirectory;
+        private BufferedWriter writer;
+        private Path outputPath;
+        private int failureCount;
+
+        FailedResponseWriter(ObjectMapper mapper, String modelId, Path resultsDirectory) {
+            this.mapper = mapper;
+            this.modelId = modelId;
+            this.resultsDirectory = resultsDirectory;
+        }
+
+        void write(Task task, String failureReason, ModelResponse response) {
+            try {
+                if (writer == null) {
+                    openWriter();
+                }
+
+                var row = mapper.createObjectNode();
+                row.put("taskId", task.getId());
+                row.put("modelId", modelId);
+                row.put("pillar", task.getPillar() != null ? task.getPillar().getValue() : null);
+                row.put("expected", task.getExpected());
+                row.put("failureReason", failureReason != null ? failureReason : "Unknown evaluation failure");
+                row.put("billText", task.getBillText());
+                row.put("response", response != null ? response.getContent() : null);
+                row.put("promptTokens", response != null ? response.getPromptTokens() : 0);
+                row.put("completionTokens", response != null ? response.getCompletionTokens() : 0);
+
+                writer.write(mapper.writeValueAsString(row));
+                writer.newLine();
+                writer.flush();
+                failureCount++;
+            } catch (Exception e) {
+                System.err.println("WARNING: Failed to write evaluation failure record for task [" + task.getId()
+                        + "]: " + e.getMessage());
+            }
+        }
+
+        void close() {
+            if (writer == null) {
+                return;
+            }
+
+            try {
+                writer.close();
+                System.out.println("Wrote " + failureCount + " failed response(s) to: " + outputPath.toAbsolutePath());
+            } catch (IOException e) {
+                System.err.println("WARNING: Failed to close failed response output file " + outputPath + ": "
+                        + e.getMessage());
+            } finally {
+                writer = null;
+            }
+        }
+
+        private void openWriter() throws IOException {
+            Files.createDirectories(resultsDirectory);
+            String sanitizedModel = sanitizeForFileName(modelId);
+            outputPath = resultsDirectory
+                    .resolve("openrouter_failed_output_" + sanitizedModel + "_" + UUID.randomUUID() + ".jsonl");
+            writer = Files.newBufferedWriter(outputPath,
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    StandardOpenOption.WRITE);
+            System.out.println("Storing failed responses in: " + outputPath.toAbsolutePath());
+        }
+
+        private static String sanitizeForFileName(String input) {
+            if (input == null || input.isBlank()) {
+                return "model";
+            }
+            return input.replaceAll("[^A-Za-z0-9._-]", "_");
+        }
     }
 }
