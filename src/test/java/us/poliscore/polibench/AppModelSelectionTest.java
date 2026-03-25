@@ -40,26 +40,33 @@ class AppModelSelectionTest {
         BenchmarkResult existingResult = new BenchmarkResult("openai/gpt-5.1");
         BenchmarkResult newResult = new BenchmarkResult("openai/gpt-5.2");
         BenchmarkResultsArchive existingArchive = new BenchmarkResultsArchive(
-                "04/03/2026",
+                "2026-03-04",
                 List.of("openai/gpt-5.1"),
                 "prompt",
                 List.of(existingResult));
 
-        BenchmarkResultsArchive merged = App.mergeArchivesForDate("04/03/2026",
+        BenchmarkResultsArchive merged = App.mergeArchivesForDate("2026-03-04",
                 existingArchive,
                 List.of("openai/gpt-5.2"),
                 List.of(newResult));
 
-        assertEquals("04/03/2026", merged.getRunDate());
+        assertEquals("2026-03-04", merged.getRunDate());
         assertEquals(List.of("openai/gpt-5.1", "openai/gpt-5.2"), merged.getModels());
         assertEquals(2, merged.getResults().size());
+    }
+
+    @Test
+    void normalizeRunDateConvertsLegacyDatesToIso() {
+        assertEquals("2026-03-25", App.normalizeRunDate("25/03/2026"));
+        assertEquals("2026-03-25", App.normalizeRunDate("2026-03-25"));
+        assertEquals("2026-03-25", App.normalizeRunDate("2026-03-25T12:00:00Z"));
     }
 
     @Test
     void benchmarkResultsArchiveRoundTripsThroughJackson() throws Exception {
         BenchmarkResult result = new BenchmarkResult("openai/gpt-5.1");
         result.setPillarScores(Map.of(Pillar.PRECISION, new BenchmarkResult.PillarResult(1, 1, new ArrayList<>())));
-        BenchmarkResultsArchive archive = new BenchmarkResultsArchive("04/03/2026",
+        BenchmarkResultsArchive archive = new BenchmarkResultsArchive("2026-03-04",
                 List.of("openai/gpt-5.1"),
                 "prompt",
                 List.of(result));
@@ -69,7 +76,7 @@ class AppModelSelectionTest {
         BenchmarkResultsArchive parsed = mapper.readValue(json, BenchmarkResultsArchive.class);
 
         assertNotNull(parsed);
-        assertEquals("04/03/2026", parsed.getRunDate());
+        assertEquals("2026-03-04", parsed.getRunDate());
         assertEquals(1, parsed.getResults().size());
         assertEquals("openai/gpt-5.1", parsed.getResults().get(0).getModelId());
     }

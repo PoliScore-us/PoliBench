@@ -19,6 +19,7 @@ import us.poliscore.polibench.models.Pillar;
 @NoArgsConstructor
 public class BenchmarkResult {
     @NonNull private String modelId;
+    private boolean allNonparseable;
     @NonNull private Map<Pillar, PillarResult> pillarScores = new HashMap<Pillar, PillarResult>();
 
     @Data
@@ -54,5 +55,6 @@ public class BenchmarkResult {
         private String rationale;
         private String response;
         private boolean passed;
+        private String error;
     }
 }

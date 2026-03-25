@@ -1,6 +1,6 @@
 # PoliBench
 
-PoliBench is a 🚨WORK IN PROGRESS🚨
+Latest test results : [https://poliscore.us/polibench](https://poliscore.us/polibench)
 
 PoliBench is a Java CLI benchmark for evaluating whether AI models can reason about legislation using the seven structural pillars defined by the PoliScore framework.
 

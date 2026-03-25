@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,7 +42,8 @@ import us.poliscore.polibench.providers.OpenRouterProvider;
 
 @Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against one or more AI models via batch API.")
 public class App implements Runnable {
-    static final DateTimeFormatter RUN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    static final DateTimeFormatter RUN_DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
+    static final DateTimeFormatter LEGACY_RUN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private static final String[] DEFAULT_SUITE_FILES = {
             "precision.json",
@@ -218,68 +220,96 @@ public class App implements Runnable {
         return provider.executeRequests(requests);
     }
 
-    private BenchmarkResult evaluateResults(ObjectMapper mapper, List<TestSuite> allSuites, List<ModelResponse> responses,
+    BenchmarkResult evaluateResults(ObjectMapper mapper, List<TestSuite> allSuites, List<ModelResponse> responses,
             String modelId) {
         System.out.println("\nStarting Evaluation Engine...");
         BenchmarkEvaluator evaluator = new BenchmarkEvaluator();
         BenchmarkResult finalResult = new BenchmarkResult(modelId);
         FailedResponseWriter failedResponseWriter = new FailedResponseWriter(mapper, modelId, resolveResultsDirectory());
-
-        Map<Pillar, List<Task>> tasksByPillar = allSuites.stream()
-                .flatMap(suite -> suite.getTasks().stream()
-                        .map(t -> new java.util.AbstractMap.SimpleEntry<>(suite.getPillar(), t)))
-                .collect(Collectors.groupingBy(Map.Entry::getKey,
-                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
+        Map<String, ModelResponse> responsesByRequestId = responses == null
+                ? Map.of()
+                : responses.stream()
+                        .collect(Collectors.toMap(ModelResponse::getRequestId, response -> response, (left, right) -> left,
+                                LinkedHashMap::new));
+        Map<Pillar, BenchmarkResult.PillarResult> pillarResults = new LinkedHashMap<>();
+        int totalTasks = 0;
+        int totalParseFailures = 0;
 
         try {
-            for (Map.Entry<Pillar, List<Task>> entry : tasksByPillar.entrySet()) {
-                Pillar pillar = entry.getKey();
-                int totalPillarTasks = entry.getValue().size();
-                int passedTasks = 0;
-                List<BenchmarkResult.TaskResult> taskResults = new ArrayList<>();
+            for (TestSuite suite : allSuites) {
+                Pillar pillar = suite.getPillar();
+                BenchmarkResult.PillarResult pillarResult = pillarResults.computeIfAbsent(pillar,
+                        ignored -> new BenchmarkResult.PillarResult(0, 0, new ArrayList<>()));
+                int suiteTotalTasks = 0;
+                int suitePassedTasks = 0;
+                int suiteParseFailures = 0;
 
-                for (Task task : entry.getValue()) {
-                    ModelResponse resp = responses.stream()
-                            .filter(r -> r.getRequestId().equals(task.getId()))
-                            .findFirst()
-                            .orElse(null);
+                for (Task task : suite.getTasks()) {
+                    totalTasks++;
+                    suiteTotalTasks++;
+                    incrementTotalTasks(pillarResult);
 
+                    ModelResponse resp = responsesByRequestId.get(task.getId());
                     String billText = task.getBillText();
 
                     boolean passed = false;
                     String failureReason = "Missing response for task ID: " + task.getId();
+                    String error = null;
                     if (resp != null) {
                         BenchmarkEvaluator.EvaluationOutcome outcome = evaluator.evaluateWithOutcome(task, resp);
                         passed = outcome.passed();
                         if (passed) {
-                            passedTasks++;
+                            suitePassedTasks++;
+                            incrementPassedTasks(pillarResult);
                         } else {
                             failureReason = outcome.failureReason();
+                            error = outcome.error();
+                            if (outcome.parseFailure()) {
+                                totalParseFailures++;
+                                suiteParseFailures++;
+                            }
                         }
                     } else {
                         System.err.println("WARNING: " + failureReason);
                     }
 
                     if (!passed) {
-                        failedResponseWriter.write(task, failureReason, resp);
+                        failedResponseWriter.write(task, failureReason, error, resp);
                     }
 
-                    taskResults.add(new BenchmarkResult.TaskResult(
+                    pillarResult.getTasks().add(new BenchmarkResult.TaskResult(
                             task.getId(),
                             billText,
                             task.getExpected(),
                             task.getRationale(),
                             resp != null ? resp.getContent() : null,
-                            passed));
+                            passed,
+                            error));
                 }
 
-                finalResult.getPillarScores().put(pillar,
-                        new BenchmarkResult.PillarResult(totalPillarTasks, passedTasks, taskResults));
+                recalculateScorePercentage(pillarResult);
             }
         } finally {
             failedResponseWriter.close();
         }
+        finalResult.setPillarScores(pillarResults);
+        finalResult.setAllNonparseable(totalTasks > 0 && totalParseFailures == totalTasks);
         return finalResult;
+    }
+
+    private static void incrementTotalTasks(BenchmarkResult.PillarResult pillarResult) {
+        pillarResult.setTotalTasks(pillarResult.getTotalTasks() + 1);
+    }
+
+    private static void incrementPassedTasks(BenchmarkResult.PillarResult pillarResult) {
+        pillarResult.setPassedTasks(pillarResult.getPassedTasks() + 1);
+    }
+
+    private static void recalculateScorePercentage(BenchmarkResult.PillarResult pillarResult) {
+        pillarResult.setScorePercentage(
+                pillarResult.getTotalTasks() > 0
+                        ? (double) pillarResult.getPassedTasks() / pillarResult.getTotalTasks() * 100.0
+                        : 0.0);
     }
 
     private Path resolveResultsDirectory() {
@@ -411,7 +441,7 @@ public class App implements Runnable {
 
         String trimmed = runDate.trim();
         try {
-            return LocalDate.parse(trimmed, RUN_DATE_FORMATTER).format(RUN_DATE_FORMATTER);
+            return LocalDate.parse(trimmed, LEGACY_RUN_DATE_FORMATTER).format(RUN_DATE_FORMATTER);
         } catch (Exception ignored) {
         }
 
@@ -442,7 +472,7 @@ public class App implements Runnable {
             this.resultsDirectory = resultsDirectory;
         }
 
-        void write(Task task, String failureReason, ModelResponse response) {
+        void write(Task task, String failureReason, String error, ModelResponse response) {
             try {
                 if (writer == null) {
                     openWriter();
@@ -454,6 +484,7 @@ public class App implements Runnable {
                 row.put("pillar", task.getPillar() != null ? task.getPillar().getValue() : null);
                 row.put("expected", task.getExpected());
                 row.put("failureReason", failureReason != null ? failureReason : "Unknown evaluation failure");
+                row.put("error", error);
                 row.put("billText", task.getBillText());
                 row.put("response", response != null ? response.getContent() : null);
                 row.put("promptTokens", response != null ? response.getPromptTokens() : 0);

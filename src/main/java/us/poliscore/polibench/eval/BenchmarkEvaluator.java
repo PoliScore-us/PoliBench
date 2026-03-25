@@ -11,13 +11,17 @@ import us.poliscore.polibench.models.Task;
 
 public class BenchmarkEvaluator {
 
-    public record EvaluationOutcome(boolean passed, String failureReason) {
+    public record EvaluationOutcome(boolean passed, String failureReason, String error, boolean parseFailure) {
         public static EvaluationOutcome pass() {
-            return new EvaluationOutcome(true, null);
+            return new EvaluationOutcome(true, null, null, false);
         }
 
         public static EvaluationOutcome fail(String reason) {
-            return new EvaluationOutcome(false, reason);
+            return new EvaluationOutcome(false, reason, null, false);
+        }
+
+        public static EvaluationOutcome failWithError(String reason, String error, boolean parseFailure) {
+            return new EvaluationOutcome(false, reason, error, parseFailure);
         }
     }
 
@@ -51,9 +55,12 @@ public class BenchmarkEvaluator {
         try {
             interpretation = parseInterpretation(task, response);
         } catch (Exception e) {
-            String reason = "Response could not be parsed by BillInterpretationParser: " + e.getMessage();
+            String error = e.getMessage() != null && !e.getMessage().isBlank()
+                    ? e.getMessage()
+                    : e.getClass().getSimpleName();
+            String reason = "Response could not be parsed by BillInterpretationParser: " + error;
             System.err.println("WARNING: Task [" + task.getId() + "] " + reason);
-            return EvaluationOutcome.fail(reason);
+            return EvaluationOutcome.failWithError(reason, error, true);
         }
 
         Boolean actualPass = interpretation.getStructuralAnalysisPassFail().get(toStructuralAnalysis(task.getPillar()));
