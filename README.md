@@ -223,10 +223,10 @@ This preserves the benchmark details for each model while making model-to-model 
 
 The current implementation is intentionally narrow:
 
-- OpenRouter is the only real provider implemented today
-- this implementation accepts any OpenRouter model ID, but the exact set of available models and prices comes from OpenRouter at runtime
-- the evaluator checks explicit `<PASS>` and `<FAIL>` tokens rather than deeper semantic grading
-- bundled suites are still small and should be treated as an early benchmark set, not a finished benchmark corpus
+- The current set of tests are small and may not be entirely comprehensive. Submission of additional tests (via pull requests) from the community would be greatly appreciated!
+- There is some ambiguity in the grading of some of the current tests. This is becoming apparent as more recent models might be "outsmarting" the benchmark.
+- There is room for improvement in the parsing of model output. Deepseek, for example, has been markdown bolding the titles. That is not supported by our parser, although perhaps it should be.
+- The PoliScore core brings in a ton of unnecessary dependencies. Hopefully we can slim this down over time.
 
 ## License
 
