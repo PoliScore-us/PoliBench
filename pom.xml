@@ -10,12 +10,6 @@
     <name>polibench</name>
     <url>http://poliscore.us</url>
     
-    <parent>
-	    <artifactId>poliscore</artifactId>
-	    <groupId>us.poliscore</groupId>
-	    <version>0.0.1-SNAPSHOT</version>
-	</parent>
-    
     <properties>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
@@ -27,12 +21,6 @@
     </properties>
 
     <dependencies>
-		<dependency>
-			<groupId>us.poliscore</groupId>
-			<artifactId>core</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
-		
 		<dependency>
 	      <groupId>org.projectlombok</groupId>
 	      <artifactId>lombok</artifactId>
@@ -100,6 +88,11 @@
                 </configuration>
             </plugin>
             
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
             <!-- Shade plugin for an executable fat jar -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

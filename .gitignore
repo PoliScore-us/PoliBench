@@ -30,3 +30,6 @@ replay_pid*
 /target/
 /results/
 /dependency-reduced-pom.xml
+
+/polibench.properties
+__pycache__/

@@ -62,7 +62,7 @@ public class OpenRouterProvider implements AiProvider {
                 ConfigLoader.getProperty("openrouter.site.url"));
         this.appTitle = ConfigLoader.getProperty("openrouter.title",
                 ConfigLoader.getProperty("openrouter.app.title", "PoliBench"));
-        this.httpClient = HttpClient.newBuilder().version(HttpClient.Version.HTTP_2).build();
+        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(30)).version(HttpClient.Version.HTTP_2).build();
         this.mapper = new ObjectMapper();
     }
 
@@ -214,6 +214,7 @@ public class OpenRouterProvider implements AiProvider {
         ObjectNode bodyNode = mapper.createObjectNode();
         bodyNode.put("model", modelId);
         bodyNode.put("temperature", 0.0);
+        bodyNode.put("max_tokens", us.poliscore.polibench.BenchmarkDefinition.MAX_COMPLETION_TOKENS);
         bodyNode.set("usage", mapper.valueToTree(Map.of("include", true)));
         if (supportsReasoningEffort(modelId)) {
             bodyNode.putObject("reasoning").put("effort", "medium");
@@ -360,6 +361,7 @@ public class OpenRouterProvider implements AiProvider {
     private HttpRequest buildCompletionRequest(JsonNode bodyNode) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(OPENROUTER_API_BASE + "/chat/completions"))
+                .timeout(Duration.ofMinutes(5))
                 .header("Authorization", "Bearer " + apiKey)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(bodyNode)));
@@ -384,6 +386,7 @@ public class OpenRouterProvider implements AiProvider {
         try {
             HttpRequest.Builder builder = HttpRequest.newBuilder()
                     .uri(URI.create(OPENROUTER_API_BASE + "/models"))
+                    .timeout(Duration.ofSeconds(30))
                     .header("Content-Type", "application/json")
                     .GET();
 

@@ -1,0 +1,7 @@
+{
+  "include": ["openai/gpt-*", "anthropic/claude-*", "google/gemini-*", "deepseek/*", "x-ai/grok-*"],
+  "exclude": ["*:free", "*:extended", "*image*", "*audio*", "*realtime*", "*search*", "*latest*"],
+  "maxModelsPerRun": 10,
+  "maxRunCostUsd": 25,
+  "modelTimeoutSeconds": 1800
+}

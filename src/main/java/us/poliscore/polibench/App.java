@@ -27,7 +27,6 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
-import us.poliscore.model.bill.BillPrompt;
 import us.poliscore.polibench.eval.BenchmarkEvaluator;
 import us.poliscore.polibench.eval.BenchmarkResult;
 import us.poliscore.polibench.eval.BenchmarkResultsArchive;
@@ -40,8 +39,8 @@ import us.poliscore.polibench.models.TestSuite;
 import us.poliscore.polibench.providers.AiProvider;
 import us.poliscore.polibench.providers.OpenRouterProvider;
 
-@Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against one or more AI models via batch API.")
-public class App implements Runnable {
+@Command(name = "polibench", mixinStandardHelpOptions = true, version = "1.0", description = "Runs the PoliBench evaluation suite against one or more AI models.")
+public class App implements java.util.concurrent.Callable<Integer> {
     static final DateTimeFormatter RUN_DATE_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE;
     static final DateTimeFormatter LEGACY_RUN_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -74,13 +73,16 @@ public class App implements Runnable {
     @Option(names = { "-y", "--yes" }, description = "Auto-accept cost estimations without prompting")
     private boolean autoAccept;
 
+    @Option(names = "--describe", description = "Write benchmark request and token-limit metadata without calling a provider")
+    private File descriptionFile;
+
     public static void main(String[] args) {
         int exitCode = new CommandLine(new App()).execute(args);
         System.exit(exitCode);
     }
 
     @Override
-    public void run() {
+    public Integer call() {
         try {
             List<String> selectedModelIds = getSelectedModelIds();
             if (existingBatchResult != null && selectedModelIds.size() != 1) {
@@ -96,16 +98,31 @@ public class App implements Runnable {
             // Step 1: Load Test Suites
             List<TestSuite> allSuites = loadTestSuites(mapper);
             if (allSuites.isEmpty()) {
-                System.err.println("No test suites found! Exiting.");
-                return;
+                throw new IllegalArgumentException("No test suites found");
             }
 
             // Step 2: Generate Requests & Calculate Tokens
             PipelineContext context = buildRequestsContext(allSuites);
+            if (context.requests.isEmpty()) throw new IllegalArgumentException("Benchmark has no tasks");
+            if (descriptionFile != null) {
+                ensureParentDirectoryExists(descriptionFile);
+                long inputTokenUpperBound = context.requests.stream().mapToLong(request ->
+                        request.getSystemPrompt().getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                        + request.getUserPrompt().getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 128L).sum();
+                mapper.writerWithDefaultPrettyPrinter().writeValue(descriptionFile, Map.of(
+                        "taskCount", context.requests.size(),
+                        "inputTokenUpperBound", inputTokenUpperBound,
+                        "maxCompletionTokens", BenchmarkDefinition.MAX_COMPLETION_TOKENS,
+                        "temperature", 0.0,
+                        "reasoningEffort", "medium for openai/gpt-5*",
+                        "systemPrompt", BenchmarkDefinition.systemPrompt()));
+                return 0;
+            }
 
             List<BenchmarkResult> runResults = new ArrayList<>();
 
-            if (existingBatchResult != null && existingBatchResult.exists()) {
+            if (existingBatchResult != null) {
+                if (!existingBatchResult.isFile()) throw new IllegalArgumentException("Results file does not exist");
                 String modelId = selectedModelIds.get(0);
                 AiProvider provider = getProvider(modelId);
                 System.out.println("Parsing existing batch results from: " + existingBatchResult.getAbsolutePath());
@@ -119,7 +136,7 @@ public class App implements Runnable {
                 // Step 3: Confirm Execution Cost
                 if (!confirmExecutionCost(runPlans, context)) {
                     System.out.println("Aborting.");
-                    return;
+                    return 1;
                 }
 
                 // Step 4: Execute Batch Pipeline
@@ -133,10 +150,12 @@ public class App implements Runnable {
 
             // Step 5: Write Aggregate Results
             writeResultsArchive(mapper, selectedModelIds, runResults);
+            return 0;
 
         } catch (Exception e) {
             System.err.println("Fatal error during execution: " + e.getMessage());
             e.printStackTrace();
+            return 1;
         }
     }
 
@@ -156,11 +175,16 @@ public class App implements Runnable {
             for (Task task : suite.getTasks()) {
                 task.setPillar(suite.getPillar());
                 String requestId = (task.getId() == null || task.getId().isBlank())
-                        ? UUID.randomUUID().toString()
+                        ? suite.getPillar().getValue() + "-" + context.requests.size()
                         : task.getId();
+                if (context.requests.stream().anyMatch(request -> request.getRequestId().equals(requestId)))
+                    throw new IllegalArgumentException("Duplicate task ID: " + requestId);
+                if (task.getBillText() == null || task.getBillText().isBlank() || task.getExpected() == null
+                        || !List.of("PASS", "FAIL").contains(task.getExpected().trim().toUpperCase()))
+                    throw new IllegalArgumentException("Invalid benchmark task: " + requestId);
                 task.setId(requestId);
 
-                String systemPrompt = BillPrompt.getPromptForBill(false, false);
+                String systemPrompt = BenchmarkDefinition.systemPrompt();
                 String billText = task.getBillText();
 
                 int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + billText);
@@ -324,7 +348,7 @@ public class App implements Runnable {
     private void writeResultsArchive(ObjectMapper mapper, List<String> selectedModelIds, List<BenchmarkResult> runResults)
             throws Exception {
         ensureParentDirectoryExists(outputFile);
-        String runDate = LocalDate.now(ZoneId.systemDefault()).format(RUN_DATE_FORMATTER);
+        String runDate = LocalDate.now(ZoneId.of("UTC")).format(RUN_DATE_FORMATTER);
         BenchmarkResultsArchive archive = mergeArchivesForDate(runDate,
                 readExistingArchive(mapper),
                 selectedModelIds,
@@ -356,9 +380,11 @@ public class App implements Runnable {
 
     private List<TestSuite> loadTestSuites(ObjectMapper mapper) throws Exception {
         List<TestSuite> suites = new ArrayList<>();
-        if (suitesDir != null && suitesDir.exists() && suitesDir.isDirectory()) {
+        if (suitesDir != null) {
+            if (!suitesDir.isDirectory()) throw new IllegalArgumentException("Suites directory does not exist");
             File[] files = suitesDir.listFiles((dir, name) -> name.endsWith(".json"));
             if (files != null) {
+                java.util.Arrays.sort(files, java.util.Comparator.comparing(File::getName));
                 for (File f : files) {
                     suites.add(mapper.readValue(f, TestSuite.class));
                 }
@@ -370,7 +396,7 @@ public class App implements Runnable {
                 if (is != null) {
                     suites.add(mapper.readValue(is, TestSuite.class));
                 } else {
-                    System.err.println("WARNING: Missing bundled suite resource: " + sd);
+                    throw new IllegalStateException("Missing bundled suite resource: " + sd);
                 }
             }
         }
@@ -416,7 +442,7 @@ public class App implements Runnable {
         List<BenchmarkResult> safeRunResults = runResults == null ? List.of() : runResults;
 
         if (existingArchive == null || !runDate.equals(normalizeRunDate(existingArchive.getRunDate()))) {
-            return new BenchmarkResultsArchive(runDate, new ArrayList<>(safeSelectedModels), BillPrompt.getPromptForBill(false, false), new ArrayList<>(safeRunResults));
+            return new BenchmarkResultsArchive(runDate, new ArrayList<>(safeSelectedModels), BenchmarkDefinition.systemPrompt(), new ArrayList<>(safeRunResults));
         }
 
         LinkedHashSet<String> mergedModels = new LinkedHashSet<>();
@@ -431,7 +457,7 @@ public class App implements Runnable {
         }
         mergedResults.addAll(safeRunResults);
 
-        return new BenchmarkResultsArchive(runDate, new ArrayList<>(mergedModels), BillPrompt.getPromptForBill(false, false), mergedResults);
+        return new BenchmarkResultsArchive(runDate, new ArrayList<>(mergedModels), BenchmarkDefinition.systemPrompt(), mergedResults);
     }
 
     static String normalizeRunDate(String runDate) {
@@ -451,7 +477,7 @@ public class App implements Runnable {
         }
 
         try {
-            return Instant.parse(trimmed).atZone(ZoneId.systemDefault()).toLocalDate().format(RUN_DATE_FORMATTER);
+            return Instant.parse(trimmed).atZone(ZoneId.of("UTC")).toLocalDate().format(RUN_DATE_FORMATTER);
         } catch (Exception ignored) {
         }
 

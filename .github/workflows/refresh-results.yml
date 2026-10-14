@@ -1,0 +1,94 @@
+name: Refresh PoliBench results
+
+on:
+  schedule:
+    # Monday 05:37 UTC = Sunday 11:37 PM MDT / 10:37 PM MST (America/Denver).
+    - cron: '37 5 * * 1'
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Optional comma-separated OpenRouter model IDs (blank discovers eligible models)'
+        type: string
+        default: ''
+      force:
+        description: 'Rerun selected models even if this benchmark version was completed'
+        type: boolean
+        default: false
+      dry_run:
+        description: 'Only discover and plan; do not call models or publish results'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+# One writer across branches and manual/scheduled runs. Never cancel an in-progress paid run.
+concurrency:
+  group: polibench-results
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+      POLIBENCH_RESULTS_BUCKET: ${{ vars.POLIBENCH_RESULTS_BUCKET || 'poliscore-prod-public' }}
+      POLIBENCH_RESULTS_PREFIX: ${{ vars.POLIBENCH_RESULTS_PREFIX || 'polibench/data' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify orchestration and build standalone runner
+        run: |
+          python -m unittest discover -s automation -p 'test_*.py' -v
+          mvn --batch-mode --no-transfer-progress clean verify
+          python -m pip install 'boto3>=1.36,<2'
+      - name: Verify the complete pipeline offline
+        shell: bash
+        run: |
+          args=(--jar target/polibench-1.0-SNAPSHOT.jar --local-store "$RUNNER_TEMP/polibench-data" --work-dir "$RUNNER_TEMP/polibench-work")
+          python automation/refresh.py "${args[@]}"
+          python automation/refresh.py "${args[@]}"
+          python -c 'import json, os; from pathlib import Path; summary = json.loads((Path(os.environ["RUNNER_TEMP"]) / "polibench-work/summary.json").read_text()); assert not summary["planned"], "Completed model was not skipped"'
+      - name: Check publication configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.POLIBENCH_AWS_ROLE_ARN }}
+        run: |
+          test -n "$POLIBENCH_RESULTS_BUCKET" || { echo 'Set POLIBENCH_RESULTS_BUCKET repository variable'; exit 1; }
+          test -n "$AWS_ROLE_ARN" || { echo 'Set POLIBENCH_AWS_ROLE_ARN repository variable'; exit 1; }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.POLIBENCH_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Discover, run missing benchmarks, and publish
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_HTTP_REFERER: https://poliscore.us/polibench
+          OPENROUTER_TITLE: PoliBench
+          REQUESTED_MODELS: ${{ inputs.models }}
+          FORCE: ${{ inputs.force }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        shell: bash
+        run: |
+          args=(--jar target/polibench-1.0-SNAPSHOT.jar)
+          if [[ -n "$REQUESTED_MODELS" ]]; then args+=(--models "$REQUESTED_MODELS"); fi
+          if [[ "$FORCE" == true ]]; then args+=(--force); fi
+          if [[ "$DRY_RUN" == true ]]; then args+=(--dry-run); fi
+          python automation/refresh.py "${args[@]}"
+      - name: Preserve run summary and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: polibench-${{ github.run_id }}-${{ github.run_attempt }}
+          path: results/
+          if-no-files-found: ignore
+          retention-days: 30

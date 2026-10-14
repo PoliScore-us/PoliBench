@@ -40,12 +40,15 @@ public class ConfigLoader {
     public static String getProperty(String key) {
         if (properties == null)
             load();
-        return properties.getProperty(key);
+        String environmentKey = key.toUpperCase(java.util.Locale.ROOT).replace('.', '_');
+        String environmentValue = System.getenv(environmentKey);
+        return environmentValue != null ? environmentValue : properties.getProperty(key);
     }
 
     public static String getProperty(String key, String defaultValue) {
         if (properties == null)
             load();
-        return properties.getProperty(key, defaultValue);
+        String value = getProperty(key);
+        return value != null ? value : defaultValue;
     }
 }

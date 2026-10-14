@@ -4,7 +4,7 @@ Latest test results : [https://poliscore.us/polibench](https://poliscore.us/poli
 
 PoliBench is a Java CLI benchmark for evaluating whether AI models can reason about legislation using the seven structural pillars defined by the PoliScore framework.
 
-It packages small benchmark suites, sends them through openrouter.ai, and grades the returned responses into a `polibench_results.json` archive with the evaluated model list and per-model, per-pillar scores.
+It is a standalone Java 21 application with a versioned system prompt. It packages small benchmark suites, sends them through openrouter.ai, and grades the returned responses into a `polibench_results.json` archive with the evaluated model list and per-model, per-pillar scores.
 
 ## What It Supports
 
@@ -22,7 +22,7 @@ Out of the box, PoliBench can:
 
 - load the bundled benchmark suites from `src/main/resources/suites/`
 - load alternate suite JSON files from a directory you provide with `--suites`
-- generate batch requests for supported models
+- generate requests for supported models
 - execute OpenRouter chat-completion requests against any OpenRouter model ID
 - parse an existing OpenRouter output file with `--results-only`
 - emit a machine-readable results file with the evaluated model list and per-model pass rates
@@ -35,11 +35,11 @@ Each suite contains one or more benchmark tasks. For each task, PoliBench:
 
 1. Builds a system prompt and user prompt.
 2. Generates a batch request.
-3. Sends the batch to the configured provider, or reads an existing result file.
-4. Grades the model response by checking whether it concludes with either `<PASS>` or `<FAIL>`.
+3. Sends requests to the configured provider, or reads an existing result file.
+4. Grades the target structural pillar against its expected `<PASS>` or `<FAIL>` verdict.
 5. Aggregates results into pillar scores.
 
-The default evaluator is intentionally simple: each task declares an expected outcome, and the model must end with the matching token.
+Each task declares an expected outcome for one pillar. The evaluator isolates the Structural Analysis section, requires all seven numbered pillars with analysis text and a `<PASS>` or `<FAIL>` verdict, and compares the target pillar to the expected outcome. It accepts markdown headings and uses the last verdict within each pillar. Unrelated report fields are not graded.
 
 ## Project Layout
 
@@ -148,7 +148,7 @@ openrouter.title=PoliBench
 
 Once that file exists, PoliBench will automatically read it from the current working directory when you run the CLI. If there is no local file, it also attempts to load `polibench.properties` from the classpath.
 
-Only `openrouter.api.key` is required. The `openrouter.http.referer` and `openrouter.title` headers are optional but recommended for OpenRouter app attribution.
+Alternatively, set `OPENROUTER_API_KEY`, `OPENROUTER_HTTP_REFERER`, and `OPENROUTER_TITLE` environment variables. Environment values override properties. Only `openrouter.api.key` / `OPENROUTER_API_KEY` is required. The `openrouter.http.referer` and `openrouter.title` headers are optional but recommended for OpenRouter app attribution.
 
 With that in place, this is enough to run against OpenRouter:
 
@@ -166,7 +166,7 @@ What happens during an OpenRouter run:
 6. It writes the raw provider responses to `results/openrouter_batch_output_<batch-id>.jsonl`.
 7. It parses that output file and writes `polibench_results.json`.
 
-OpenRouter does not currently expose a provider-side batch flow in this implementation. PoliBench therefore executes a local pseudo-batch: it keeps the JSONL request/output artifacts, but sends the requests sequentially through OpenRouter.
+OpenRouter does not currently expose a provider-side batch flow in this implementation. PoliBench therefore executes a local batch using bounded worker concurrency and a shared request rate limit, while preserving JSONL response artifacts. Requests have a five-minute timeout and an 8,192-token completion cap.
 
 If `polibench.properties` is missing or `openrouter.api.key` is unset, OpenRouter execution will fail with a configuration error when submission starts.
 
@@ -206,8 +206,7 @@ The result file is a JSON archive with:
 Each item in `results` contains:
 
 - `modelId`
-- `runDate`
-- `systemPrompt`
+- `allNonparseable`
 - `pillarScores`
 
 Each `pillarScores` entry contains:
@@ -225,8 +224,20 @@ The current implementation is intentionally narrow:
 
 - The current set of tests are small and may not be entirely comprehensive. Submission of additional tests (via pull requests) from the community would be greatly appreciated!
 - There is some ambiguity in the grading of some of the current tests. This is becoming apparent as more recent models might be "outsmarting" the benchmark.
-- There is room for improvement in the parsing of model output. Deepseek, for example, has been markdown bolding the titles. That is not supported by our parser, although perhaps it should be.
-- The PoliScore core brings in a ton of unnecessary dependencies. Hopefully we can slim this down over time.
+- A response must include all seven structural pillars and their verdicts to be parseable.
+- The versioned benchmark prompt is maintained in this repository; changes in the separate PoliScore repository must be adopted explicitly.
+
+## Automated results
+
+A single GitHub Actions workflow supports manual execution and Sunday-night
+refreshes. It discovers models, detects changed benchmark inputs, runs missing
+model/version pairs, and publishes immutable JSON results plus a live catalog to
+S3. See [automation setup and operation](automation/README.md) for GitHub variables,
+OIDC permissions, spending policy, frontend setup, recovery, and offline checks.
+
+Use `--describe /tmp/benchmark.json` to inspect request counts, prompt and generation
+limits without executing a provider. Execution errors now return a nonzero CLI
+exit code. The standalone runner no longer depends on the PoliScore core.
 
 ## License
 
