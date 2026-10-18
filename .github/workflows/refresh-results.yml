@@ -10,6 +10,10 @@ on:
         description: 'Optional comma-separated OpenRouter model IDs (blank discovers eligible models)'
         type: string
         default: ''
+      max_models:
+        description: 'Maximum models to run (positive integer; use 1 for a quick test)'
+        type: number
+        default: 11
       force:
         description: 'Rerun selected models even if this benchmark version was completed'
         type: boolean
@@ -75,11 +79,13 @@ jobs:
           OPENROUTER_HTTP_REFERER: https://poliscore.us/polibench
           OPENROUTER_TITLE: PoliBench
           REQUESTED_MODELS: ${{ inputs.models }}
+          MAX_MODELS: ${{ inputs.max_models }}
           FORCE: ${{ inputs.force }}
           DRY_RUN: ${{ inputs.dry_run }}
         shell: bash
         run: |
           args=(--jar target/polibench-1.0-SNAPSHOT.jar)
+          if [[ -n "$MAX_MODELS" ]]; then args+=(--max-models "$MAX_MODELS"); fi
           if [[ -n "$REQUESTED_MODELS" ]]; then args+=(--models "$REQUESTED_MODELS"); fi
           if [[ "$FORCE" == true ]]; then args+=(--force); fi
           if [[ "$DRY_RUN" == true ]]; then args+=(--dry-run); fi

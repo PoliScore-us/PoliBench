@@ -242,10 +242,15 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Plan only, no model requests or writes to storage")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--models", help="Comma-separated exact IDs; overrides discovery filters")
+    parser.add_argument("--max-models", type=int, help="Positive model-count override (defaults to policy)")
     args = parser.parse_args()
+    if args.max_models is not None and args.max_models < 1:
+        parser.error("--max-models must be a positive integer")
     args.jar = args.jar.resolve()
     args.work_dir.mkdir(parents=True, exist_ok=True)
     policy = json.loads(args.policy.read_text())
+    if args.max_models is not None:
+        policy["maxModelsPerRun"] = args.max_models
     if policy["modelTimeoutSeconds"] < 1:
         raise ValueError("Timeout must be positive")
     description_path = args.work_dir / "description.json"
