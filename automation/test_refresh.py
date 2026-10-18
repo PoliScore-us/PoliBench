@@ -50,13 +50,14 @@ class RefreshTest(unittest.TestCase):
         selectors = json.loads(Path(__file__).with_name("models.json").read_text())["selectors"]
         ids = ["openai/gpt-6.1-sol", "openai/gpt-6-luna", "anthropic/claude-sonnet-5.5",
                "anthropic/claude-haiku-5.5", "google/gemini-3.8-flash", "google/gemini-4-argon",
-               "x-ai/grok-4.7", "deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4.1-flash-1017"]
+               "x-ai/grok-4.7", "deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4.1-flash-1017", "qwen/qwen3.8-max-0902", "qwen/qwen3.8-flash"]
         models = [dict(self.model, id=identifier, created=200) for identifier in ids]
         for identifier in ["openai/gpt-6-sol", "x-ai/grok-4.20", "deepseek/deepseek-v4-pro"]:
             models.append(dict(self.model, id=identifier, created=100))
         for identifier in ["openai/gpt-99-sol-pro", "anthropic/claude-opus-99",
                            "x-ai/grok-99-heavy", "deepseek/deepseek-v99-flash-vision-exp",
-                           "anthropic/claude-sonnet-99:batch"]:
+                           "anthropic/claude-sonnet-99:batch", "qwen/qwen99-max-prime",
+                           "qwen/qwen99-omni-flash", "qwen/qwen99-coder-flash", "qwen/qwen99-flash:batch"]:
             models.append(dict(self.model, id=identifier, created=300))
         self.assertEqual(resolve_selectors(models, selectors), ids)
         with self.assertRaisesRegex(ValueError, "No available model"):
