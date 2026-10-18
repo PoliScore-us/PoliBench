@@ -216,8 +216,8 @@ public class OpenRouterProvider implements AiProvider {
         bodyNode.put("temperature", 0.0);
         bodyNode.put("max_tokens", us.poliscore.polibench.BenchmarkDefinition.MAX_COMPLETION_TOKENS);
         bodyNode.set("usage", mapper.valueToTree(Map.of("include", true)));
-        if (supportsReasoningEffort(modelId)) {
-            bodyNode.putObject("reasoning").put("effort", "medium");
+        if (reasoningEffort(modelId) != null) {
+            bodyNode.putObject("reasoning").put("effort", reasoningEffort(modelId));
         }
         bodyNode.set("messages", mapper.valueToTree(List.of(
                 Map.of("role", "system", "content", modelRequest.getSystemPrompt()),
@@ -425,13 +425,21 @@ public class OpenRouterProvider implements AiProvider {
         return new BigDecimal(value);
     }
 
+    static String reasoningEffort(String candidateModelId) {
+        String normalized = candidateModelId == null ? "" : normalizeModelRef(candidateModelId);
+        if (normalized.equals("google/gemini-3.8-flash") || normalized.equals("google/gemini-4-argon")) {
+            return "high";
+        }
+        return supportsReasoningEffort(candidateModelId) ? "medium" : null;
+    }
+
     static boolean supportsReasoningEffort(String candidateModelId) {
         if (candidateModelId == null) {
             return false;
         }
 
         String normalized = normalizeModelRef(candidateModelId);
-        return normalized.startsWith("openai/gpt-5");
+        return normalized.matches("openai/gpt-(?:[5-9]|[1-9][0-9]+).*");
     }
 
     static JsonNode findPricingEntry(JsonNode models, String requestedModelId) {

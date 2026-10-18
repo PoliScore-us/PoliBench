@@ -114,7 +114,7 @@ public class App implements java.util.concurrent.Callable<Integer> {
                         "inputTokenUpperBound", inputTokenUpperBound,
                         "maxCompletionTokens", BenchmarkDefinition.MAX_COMPLETION_TOKENS,
                         "temperature", 0.0,
-                        "reasoningEffort", "medium for openai/gpt-5*",
+                        "reasoningEffort", "medium for numbered OpenAI GPT models; high for google/gemini-3.8-flash and google/gemini-4-argon",
                         "systemPrompt", BenchmarkDefinition.systemPrompt()));
                 return 0;
             }

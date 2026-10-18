@@ -69,7 +69,30 @@ def estimated_cost(model, description):
             + request_price * description["taskCount"])
 
 
+def resolve_selectors(models, selectors):
+    """Resolve one concrete release per slot before checking completion history."""
+    resolved = []
+    for selector in selectors:
+        if "id" in selector:
+            matches = [model for model in models if model["id"] == selector["id"]]
+        else:
+            pattern = re.compile(selector["pattern"])
+            matches = [model for model in models if pattern.fullmatch(model["id"])]
+        if not matches:
+            raise ValueError("No available model for slot: " + selector["name"])
+        def release_key(model):
+            match = re.fullmatch(selector["pattern"], model["id"]) if "pattern" in selector else None
+            version = tuple(int(part) for part in match.group(1).split(".")) if match else ()
+            if selector.get("orderBy") == "created":
+                return model.get("created", 0), version, model["id"]
+            return version, model.get("created", 0), model["id"]
+        resolved.append(max(matches, key=release_key)["id"])
+    return list(dict.fromkeys(resolved))
+
+
 def plan(models, catalog, version, policy, description, force=False, selected=None):
+    if selected is None and "selectors" in policy:
+        selected = resolve_selectors(models, policy["selectors"])
     tested = {run["modelId"] for run in catalog["runs"]
               if run["benchmarkFingerprint"] == version and run.get("status") == "complete"}
     candidates, skipped, unavailable = [], [], set(selected or [])
@@ -103,7 +126,8 @@ def plan(models, catalog, version, policy, description, force=False, selected=No
         raise ValueError("Budget and model count must be positive")
     for model, cost in candidates:
         if len(planned) >= policy["maxModelsPerRun"] or reserved + cost > limit:
-            skipped.append({"modelId": model["id"], "reason": "Run budget or model limit"})
+            reason = "Model count limit" if len(planned) >= policy["maxModelsPerRun"] else "Run budget limit"
+            skipped.append({"modelId": model["id"], "reason": reason})
             continue
         planned.append({"modelId": model["id"], "estimatedMaximumCostUsd": str(cost)})
         reserved += cost
@@ -232,7 +256,9 @@ def main():
         store = LocalStore(args.local_store)
         models = [{"id": "mock", "architecture": {"input_modalities": ["text"], "output_modalities": ["text"]},
                    "pricing": {"prompt": "0", "completion": "0"}}]
+        policy.pop("selectors", None)
         policy["include"] = ["mock"]
+        policy["exclude"] = []
     else:
         if not args.bucket:
             raise ValueError("Set POLIBENCH_RESULTS_BUCKET or --bucket")

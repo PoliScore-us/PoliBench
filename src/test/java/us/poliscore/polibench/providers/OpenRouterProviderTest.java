@@ -24,6 +24,15 @@ class OpenRouterProviderTest {
     Path tempDir;
 
     @Test
+    void selectsExplicitReasoningForGeminiAndCurrentGpt() {
+        assertEquals("high", OpenRouterProvider.reasoningEffort("google/gemini-3.8-flash"));
+        assertEquals("high", OpenRouterProvider.reasoningEffort("google/gemini-4-argon"));
+        assertEquals("medium", OpenRouterProvider.reasoningEffort("openai/gpt-6.1-sol"));
+        assertEquals("medium", OpenRouterProvider.reasoningEffort("openai/gpt-6-luna"));
+        assertEquals(null, OpenRouterProvider.reasoningEffort("openai/gpt-4o"));
+    }
+
+    @Test
     void parseBatchResultsReturnsResponsesForSuccessfulRows() throws Exception {
         Path batchResults = tempDir.resolve("openrouter-success.jsonl");
         Files.writeString(batchResults, """

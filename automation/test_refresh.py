@@ -45,6 +45,27 @@ class RefreshTest(unittest.TestCase):
         self.policy["maxModelsPerRun"] = 1
         self.assertEqual(len(plan([self.model, dict(self.model, id="openai/second")], empty_catalog(), "v", self.policy, self.description)[0]), 1)
 
+    def test_curated_slots_choose_latest_without_specialist_variants(self):
+        from refresh import resolve_selectors
+        selectors = json.loads(Path(__file__).with_name("models.json").read_text())["selectors"]
+        ids = ["openai/gpt-6.1-sol", "openai/gpt-6-luna", "anthropic/claude-sonnet-5.5",
+               "anthropic/claude-haiku-5.5", "google/gemini-3.8-flash", "google/gemini-4-argon",
+               "x-ai/grok-4.7", "deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4.1-flash-1017"]
+        models = [dict(self.model, id=identifier, created=200) for identifier in ids]
+        for identifier in ["openai/gpt-6-sol", "x-ai/grok-4.20", "deepseek/deepseek-v4-pro"]:
+            models.append(dict(self.model, id=identifier, created=100))
+        for identifier in ["openai/gpt-99-sol-pro", "anthropic/claude-opus-99",
+                           "x-ai/grok-99-heavy", "deepseek/deepseek-v99-flash-vision-exp",
+                           "anthropic/claude-sonnet-99:batch"]:
+            models.append(dict(self.model, id=identifier, created=300))
+        self.assertEqual(resolve_selectors(models, selectors), ids)
+        with self.assertRaisesRegex(ValueError, "No available model"):
+            resolve_selectors([], selectors)
+        # An already-completed newest release must not fall back to an older one.
+        policy = dict(self.policy, selectors=[selectors[0]])
+        catalog = {"runs": [dict(self.entry, modelId=ids[0])]}
+        self.assertEqual(plan(models, catalog, "version", policy, self.description)[0], [])
+
     def test_explicit_selection_and_unknown_models(self):
         self.assertEqual(len(plan([dict(self.model, id="other/test")], empty_catalog(), "v", self.policy,
                                   self.description, selected=["other/test"])[0]), 1)

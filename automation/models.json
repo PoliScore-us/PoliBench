@@ -1,6 +1,43 @@
 {
-  "include": ["openai/gpt-*", "anthropic/claude-*", "google/gemini-*", "deepseek/*", "x-ai/grok-*"],
-  "exclude": ["*:free", "*:extended", "*image*", "*audio*", "*realtime*", "*search*", "*latest*"],
+  "selectors": [
+    {
+      "name": "GPT Sol",
+      "pattern": "openai/gpt-([0-9]+(?:\\.[0-9]+)*)-sol"
+    },
+    {
+      "name": "GPT Luna",
+      "pattern": "openai/gpt-([0-9]+(?:\\.[0-9]+)*)-luna"
+    },
+    {
+      "name": "Claude Sonnet",
+      "pattern": "anthropic/claude-sonnet-([0-9]+(?:\\.[0-9]+)*)"
+    },
+    {
+      "name": "Claude Haiku",
+      "pattern": "anthropic/claude-haiku-([0-9]+(?:\\.[0-9]+)*)"
+    },
+    {
+      "name": "Gemini Flash",
+      "id": "google/gemini-3.8-flash"
+    },
+    {
+      "name": "Gemini Argon",
+      "id": "google/gemini-4-argon"
+    },
+    {
+      "name": "Grok",
+      "pattern": "x-ai/grok-([0-9]+(?:\\.[0-9]+)*)",
+      "orderBy": "created"
+    },
+    {
+      "name": "DeepSeek Pro",
+      "pattern": "deepseek/deepseek-v([0-9]+(?:\\.[0-9]+)*)-pro(?:-[0-9]{4})?"
+    },
+    {
+      "name": "DeepSeek Flash",
+      "pattern": "deepseek/deepseek-v([0-9]+(?:\\.[0-9]+)*)-flash(?:-[0-9]{4})?"
+    }
+  ],
   "maxModelsPerRun": 10,
   "maxRunCostUsd": 25,
   "modelTimeoutSeconds": 1800
