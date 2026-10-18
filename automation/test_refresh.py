@@ -51,6 +51,17 @@ class RefreshTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             plan([], empty_catalog(), "v", self.policy, self.description, selected=["missing"])
 
+    def test_claude_gemini_policy_discovers_versions_and_skips_specialized_variants(self):
+        policy = json.loads(Path(__file__).with_name("claude-gemini.json").read_text())
+        eligible = ["anthropic/claude-sonnet-example", "anthropic/claude-opus-example",
+                    "google/gemini-example-pro", "google/gemini-example-flash-preview"]
+        excluded = ["openai/test", "anthropic/claude-sonnet-example:batch",
+                    "google/gemini-example-pro:free", "google/gemini-example-image",
+                    "google/gemini-nano-banana-example", "anthropic/claude-sonnet-latest"]
+        models = [dict(self.model, id=model_id) for model_id in eligible + excluded]
+        planned, _ = plan(models, empty_catalog(), "v", policy, self.description)
+        self.assertEqual({item["modelId"] for item in planned}, set(eligible))
+
     def test_cost_reserves_all_completion_tokens_and_rejects_invalid_prices(self):
         self.assertEqual(str(estimated_cost(self.model, self.description)), "0.1700")
         for value in ["NaN", "-1", "Infinity"]:

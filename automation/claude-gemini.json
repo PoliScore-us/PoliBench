@@ -1,0 +1,20 @@
+{
+  "include": [
+    "anthropic/claude-*",
+    "google/gemini-*"
+  ],
+  "exclude": [
+    "*:free",
+    "*:extended",
+    "*image*",
+    "*audio*",
+    "*realtime*",
+    "*search*",
+    "*latest*",
+    "*:batch",
+    "*nano-banana*"
+  ],
+  "maxModelsPerRun": 10,
+  "maxRunCostUsd": 25,
+  "modelTimeoutSeconds": 1800
+}
