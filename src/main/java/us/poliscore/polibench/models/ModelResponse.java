@@ -1,6 +1,34 @@
 package us.poliscore.polibench.models;
 
 public class ModelResponse {
+    @lombok.Data
+    @lombok.NoArgsConstructor
+    @lombok.AllArgsConstructor
+    public static class Attempt {
+        private String finishReason;
+        private String nativeFinishReason;
+        private String provider;
+        private String responseId;
+        private String resolvedModel;
+        private int maxCompletionTokens;
+        private int promptTokens;
+        private int completionTokens;
+        private Integer reasoningTokens;
+        private Integer visibleOutputTokens;
+        private java.math.BigDecimal costUsd;
+    }
+
+    @lombok.Getter @lombok.Setter
+    private java.util.List<Attempt> attempts = new java.util.ArrayList<>();
+
+    public boolean isIncomplete() {
+        if (content == null || content.isBlank()) return true;
+        if (attempts.isEmpty()) return false; // Legacy imports have no completion metadata.
+        var last = attempts.get(attempts.size() - 1);
+        return (last.getFinishReason() != null && !"stop".equalsIgnoreCase(last.getFinishReason()))
+                || "MAX_TOKENS".equalsIgnoreCase(last.getNativeFinishReason());
+    }
+
     private String requestId;
     private String content;
     private int promptTokens;

@@ -44,6 +44,7 @@ public class OpenRouterProvider implements AiProvider {
     private static final boolean FAIL_FAST = Boolean
             .parseBoolean(System.getProperty("polibench.openrouter.failFast", "true"));
 
+    private final Path attemptJournal = Path.of("results", "openrouter_attempts_" + UUID.randomUUID() + ".jsonl");
     private final String modelId;
     private final String apiKey;
     private final String referer;
@@ -211,10 +212,31 @@ public class OpenRouterProvider implements AiProvider {
     }
 
     private RequestOutcome executeRequest(ModelRequest modelRequest) throws Exception {
+        var first = executeAttempt(modelRequest, us.poliscore.polibench.BenchmarkDefinition.MAX_COMPLETION_TOKENS);
+        if (!shouldRetry(first.response())) return first;
+        var second = executeAttempt(modelRequest, us.poliscore.polibench.BenchmarkDefinition.RETRY_COMPLETION_TOKENS);
+        // Persist both raw responses in one row so replay exactly reproduces evaluation and billing.
+        ObjectNode row = (ObjectNode) mapper.readTree(second.resultLine());
+        row.putArray("previous_attempts").add(mapper.readTree(first.resultLine()));
+        return new RequestOutcome(parseResultRow(row), mapper.writeValueAsString(row));
+    }
+
+    static boolean shouldRetry(ModelResponse response) {
+        if (response.getAttempts().isEmpty()) return false;
+        var attempt = response.getAttempts().get(response.getAttempts().size() - 1);
+        return "length".equalsIgnoreCase(attempt.getFinishReason())
+                || "MAX_TOKENS".equalsIgnoreCase(attempt.getNativeFinishReason());
+    }
+
+    protected HttpResponse<String> sendCompletion(JsonNode body) throws Exception {
+        return httpClient.send(buildCompletionRequest(body), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private RequestOutcome executeAttempt(ModelRequest modelRequest, int maxTokens) throws Exception {
         ObjectNode bodyNode = mapper.createObjectNode();
         bodyNode.put("model", modelId);
         bodyNode.put("temperature", 0.0);
-        bodyNode.put("max_tokens", us.poliscore.polibench.BenchmarkDefinition.MAX_COMPLETION_TOKENS);
+        bodyNode.put("max_tokens", maxTokens);
         bodyNode.set("usage", mapper.valueToTree(Map.of("include", true)));
         if (reasoningEffort(modelId) != null) {
             bodyNode.putObject("reasoning").put("effort", reasoningEffort(modelId));
@@ -227,7 +249,7 @@ public class OpenRouterProvider implements AiProvider {
         
         HttpResponse<String> response;
         try {
-            response = httpClient.send(buildCompletionRequest(bodyNode), HttpResponse.BodyHandlers.ofString());
+            response = sendCompletion(bodyNode);
         } catch (Exception e) {
             throw new IllegalStateException("OpenRouter request failed for task [" + modelRequest.getRequestId() + "]: "
                     + summarizeBody(e.getMessage()), e);
@@ -239,6 +261,12 @@ public class OpenRouterProvider implements AiProvider {
         }
 
         ObjectNode rowNode = buildResultRow(modelRequest.getRequestId(), response.statusCode(), response.body());
+        rowNode.put("max_completion_tokens", maxTokens);
+        synchronized (this) {
+            Files.createDirectories(attemptJournal.getParent());
+            Files.writeString(attemptJournal, mapper.writeValueAsString(rowNode) + "\n",
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        }
         return new RequestOutcome(parseResultRow(rowNode), mapper.writeValueAsString(rowNode));
     }
 
@@ -275,15 +303,34 @@ public class OpenRouterProvider implements AiProvider {
         }
 
         String content = extractChoiceContent(choicesNode.get(0));
-        if (content.isBlank()) {
-            System.err.println("WARNING: OpenRouter response content was empty for task [" + customId
-                    + "]. Persisting raw response body for downstream inspection.");
-            content = responseBody.toString();
-        }
 
-        int promptTokens = responseBody.path("usage").path("prompt_tokens").asInt();
-        int completionTokens = responseBody.path("usage").path("completion_tokens").asInt();
-        return new ModelResponse(customId, content, promptTokens, completionTokens);
+        JsonNode usage = responseBody.path("usage");
+        int promptTokens = usage.path("prompt_tokens").asInt();
+        int completionTokens = usage.path("completion_tokens").asInt();
+        ModelResponse result = new ModelResponse(customId, content, promptTokens, completionTokens);
+        for (JsonNode previous : root.path("previous_attempts")) {
+            if (!customId.equals(previous.path("custom_id").asText()))
+                throw new IllegalStateException("Retry task ID mismatch");
+            ModelResponse prior = parseResultRow(previous);
+            result.getAttempts().addAll(prior.getAttempts());
+            result.setPromptTokens(result.getPromptTokens() + prior.getPromptTokens());
+            result.setCompletionTokens(result.getCompletionTokens() + prior.getCompletionTokens());
+        }
+        JsonNode reasoning = usage.path("completion_tokens_details").path("reasoning_tokens");
+        Integer reasoningTokens = reasoning.isIntegralNumber() ? reasoning.asInt() : null;
+        Integer visibleTokens = reasoningTokens == null ? null : Math.max(0, completionTokens - reasoningTokens);
+        JsonNode choice = choicesNode.get(0);
+        result.getAttempts().add(new ModelResponse.Attempt(
+                nullableText(choice.path("finish_reason")), nullableText(choice.path("native_finish_reason")),
+                nullableText(responseBody.path("provider")), nullableText(responseBody.path("id")),
+                nullableText(responseBody.path("model")), root.path("max_completion_tokens").asInt(),
+                promptTokens, completionTokens, reasoningTokens, visibleTokens,
+                usage.path("cost").isNumber() ? usage.path("cost").decimalValue() : null));
+        return result;
+    }
+
+    private static String nullableText(JsonNode node) {
+        return node.isTextual() ? node.asText() : null;
     }
 
     private String extractChoiceContent(JsonNode choiceNode) {
@@ -303,8 +350,7 @@ public class OpenRouterProvider implements AiProvider {
             return content;
         }
 
-        content = extractTextPayload(messageNode.path("reasoning"));
-        return content;
+        return ""; // Internal reasoning is never a substitute for the final answer.
     }
 
     private String extractTextPayload(JsonNode node) {

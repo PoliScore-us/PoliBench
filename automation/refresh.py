@@ -64,9 +64,9 @@ def estimated_cost(model, description):
     request_price = Decimal(str(pricing.get("request", "0")))
     if not request_price.is_finite() or request_price < 0:
         raise ValueError("Invalid per-request price")
-    return (values[0] * description["inputTokenUpperBound"]
-            + values[1] * description["maxCompletionTokens"] * description["taskCount"]
-            + request_price * description["taskCount"])
+    return (values[0] * description["inputTokenUpperBound"] * description.get("maxAttempts", 1)
+            + values[1] * description.get("maxTotalCompletionTokens", description["maxCompletionTokens"]) * description["taskCount"]
+            + request_price * description["taskCount"] * description.get("maxAttempts", 1))
 
 
 def resolve_selectors(models, selectors):
@@ -155,7 +155,8 @@ def validate_result(archive, model_id, task_count):
         if score.get("passedTasks") != passed or not math.isclose(score.get("scorePercentage", -1), expected_percentage):
             raise ValueError("Inconsistent scores")
         for task in tasks:
-            if not task.get("response") or not task.get("id") or task["id"] in ids:
+            if (not isinstance(task.get("response"), str) or not task.get("id") or task["id"] in ids
+                    or (not task["response"] and task.get("outcome") != "INCOMPLETE_GENERATION")):
                 raise ValueError("Missing response or duplicate task ID")
             ids.add(task["id"])
     if total != task_count:
@@ -288,7 +289,7 @@ def main():
             run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex
             output = (args.work_dir / (run_id + ".json")).resolve()
             try:
-                # No automatic retries: a timed-out request may already have been billed.
+                # No whole-process retries. The runner retries explicit truncation once within the reserved cost.
                 subprocess.run(["java", "-Dpolibench.openrouter.threads=4", "-Dpolibench.openrouter.rpm=60",
                                 "-jar", str(args.jar), "--model", model_id, "--yes", "--output", str(output)],
                                check=True, timeout=policy["modelTimeoutSeconds"])
@@ -299,7 +300,8 @@ def main():
                 archive.update({"schemaVersion": 1, "benchmarkFingerprint": version,
                                 "runDate": entry["runDate"], "sourceCommit": entry["sourceCommit"],
                                 "generation": {key: description[key] for key in
-                                               ("maxCompletionTokens", "temperature", "reasoningEffort")}})
+                                               ("maxCompletionTokens", "maxTotalCompletionTokens", "maxAttempts", "retryCompletionTokens",
+                                                "generationPolicy", "temperature", "reasoningEffort")}})
                 output.write_text(json.dumps(archive, indent=2))
                 publish(store, entry, archive)
                 summary["completed"].append(entry)

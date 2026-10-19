@@ -113,6 +113,10 @@ public class App implements java.util.concurrent.Callable<Integer> {
                         "taskCount", context.requests.size(),
                         "inputTokenUpperBound", inputTokenUpperBound,
                         "maxCompletionTokens", BenchmarkDefinition.MAX_COMPLETION_TOKENS,
+                        "maxTotalCompletionTokens", BenchmarkDefinition.MAX_TOTAL_COMPLETION_TOKENS,
+                        "maxAttempts", BenchmarkDefinition.MAX_ATTEMPTS,
+                        "retryCompletionTokens", BenchmarkDefinition.RETRY_COMPLETION_TOKENS,
+                        "generationPolicy", BenchmarkDefinition.GENERATION_POLICY,
                         "temperature", 0.0,
                         "reasoningEffort", "medium for numbered OpenAI GPT models; high for google/gemini-3.8-flash and google/gemini-4-argon",
                         "systemPrompt", BenchmarkDefinition.systemPrompt()));
@@ -188,8 +192,8 @@ public class App implements java.util.concurrent.Callable<Integer> {
                 String billText = task.getBillText();
 
                 int promptTokens = CostEstimator.estimateTokens(systemPrompt + " " + billText);
-                context.totalInputTokens += promptTokens;
-                context.totalExpectedOutputTokens += 150;
+                context.totalInputTokens += promptTokens * BenchmarkDefinition.MAX_ATTEMPTS;
+                context.totalExpectedOutputTokens += BenchmarkDefinition.MAX_TOTAL_COMPLETION_TOKENS;
 
                 context.requests.add(new ModelRequest(requestId, systemPrompt, billText, task));
             }
@@ -258,6 +262,8 @@ public class App implements java.util.concurrent.Callable<Integer> {
         Map<Pillar, BenchmarkResult.PillarResult> pillarResults = new LinkedHashMap<>();
         int totalTasks = 0;
         int totalParseFailures = 0;
+        var metrics = new BenchmarkResult.Metrics();
+        finalResult.setMetrics(metrics);
 
         try {
             for (TestSuite suite : allSuites) {
@@ -301,20 +307,58 @@ public class App implements java.util.concurrent.Callable<Integer> {
                         failedResponseWriter.write(task, failureReason, error, resp);
                     }
 
-                    pillarResult.getTasks().add(new BenchmarkResult.TaskResult(
+                    var taskResult = new BenchmarkResult.TaskResult(
                             task.getId(),
                             billText,
                             task.getExpected(),
                             task.getRationale(),
                             resp != null ? resp.getContent() : null,
                             passed,
-                            error));
+                            error);
+                    Boolean verdict = evaluator.targetVerdict(task, resp);
+                    Boolean judgmentCorrect = verdict == null ? null : verdict == task.getExpected().trim().equalsIgnoreCase("PASS");
+                    boolean structural = evaluator.structurallyValid(resp);
+                    boolean complete = evaluator.reportComplete(resp);
+                    String outcome = resp == null ? "MISSING_RESPONSE" : resp.isIncomplete() ? "INCOMPLETE_GENERATION"
+                            : !structural ? "INVALID_FORMAT" : !passed ? "WRONG_VERDICT" : "CORRECT";
+                    taskResult.setOutcome(outcome);
+                    taskResult.setActualVerdict(verdict);
+                    taskResult.setJudgmentCorrect(judgmentCorrect);
+                    taskResult.setStructurallyValid(structural);
+                    taskResult.setReportComplete(complete);
+                    taskResult.setAttempts(resp == null ? List.of() : resp.getAttempts());
+                    pillarResult.getTasks().add(taskResult);
+                    metrics.setTotalTasks(metrics.getTotalTasks() + 1);
+                    if (verdict != null) metrics.setReadableJudgments(metrics.getReadableJudgments() + 1);
+                    if (Boolean.TRUE.equals(judgmentCorrect)) metrics.setCorrectJudgments(metrics.getCorrectJudgments() + 1);
+                    if (structural) metrics.setStructurallyValidResponses(metrics.getStructurallyValidResponses() + 1);
+                    if (complete) metrics.setCompleteReports(metrics.getCompleteReports() + 1);
+                    if (outcome.equals("INCOMPLETE_GENERATION") || outcome.equals("MISSING_RESPONSE"))
+                        metrics.setIncompleteGenerations(metrics.getIncompleteGenerations() + 1);
+                    if (outcome.equals("INVALID_FORMAT")) metrics.setInvalidFormats(metrics.getInvalidFormats() + 1);
+                    if (outcome.equals("WRONG_VERDICT")) metrics.setWrongVerdicts(metrics.getWrongVerdicts() + 1);
+                    if (resp != null) {
+                        metrics.setPromptTokens(metrics.getPromptTokens() + resp.getPromptTokens());
+                        metrics.setCompletionTokens(metrics.getCompletionTokens() + resp.getCompletionTokens());
+                        metrics.setAttempts(metrics.getAttempts() + resp.getAttempts().size());
+                        if (resp.getAttempts().isEmpty()) metrics.setCostAvailableForAllAttempts(false);
+                        for (var attempt : resp.getAttempts()) {
+                            if (attempt.getCostUsd() == null) metrics.setCostAvailableForAllAttempts(false);
+                            else metrics.setReportedCostUsd(metrics.getReportedCostUsd().add(attempt.getCostUsd()));
+                        }
+                    } else metrics.setCostAvailableForAllAttempts(false);
                 }
 
                 recalculateScorePercentage(pillarResult);
             }
         } finally {
             failedResponseWriter.close();
+        }
+        if (totalTasks > 0) {
+            metrics.setJudgmentAccuracyPercentage(metrics.getReadableJudgments() == 0 ? null
+                    : 100.0 * metrics.getCorrectJudgments() / metrics.getReadableJudgments());
+            metrics.setStructuralReliabilityPercentage(100.0 * metrics.getStructurallyValidResponses() / totalTasks);
+            metrics.setReportCompletionPercentage(100.0 * metrics.getCompleteReports() / totalTasks);
         }
         finalResult.setPillarScores(pillarResults);
         finalResult.setAllNonparseable(totalTasks > 0 && totalParseFailures == totalTasks);
@@ -353,7 +397,16 @@ public class App implements java.util.concurrent.Callable<Integer> {
                 readExistingArchive(mapper),
                 selectedModelIds,
                 runResults);
-        mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, archive);
+        com.fasterxml.jackson.databind.node.ObjectNode document = mapper.valueToTree(archive);
+        document.put("evaluationVersion", "response-reliability-v2");
+        if (existingBatchResult == null) document.set("generation", mapper.valueToTree(Map.of(
+                "maxCompletionTokens", BenchmarkDefinition.MAX_COMPLETION_TOKENS,
+                "retryCompletionTokens", BenchmarkDefinition.RETRY_COMPLETION_TOKENS,
+                "maxAttempts", BenchmarkDefinition.MAX_ATTEMPTS,
+                "maxTotalCompletionTokens", BenchmarkDefinition.MAX_TOTAL_COMPLETION_TOKENS,
+                "temperature", 0.0, "generationPolicy", BenchmarkDefinition.GENERATION_POLICY,
+                "reasoningEffort", "medium for numbered OpenAI GPT models; high for google/gemini-3.8-flash and google/gemini-4-argon; provider default otherwise")));
+        mapper.writerWithDefaultPrettyPrinter().writeValue(outputFile, document);
         System.out.println("\nSuccessfully generated evaluation results: " + outputFile.getAbsolutePath());
     }
 
@@ -363,7 +416,8 @@ public class App implements java.util.concurrent.Callable<Integer> {
         }
 
         try {
-            return mapper.readValue(outputFile, BenchmarkResultsArchive.class);
+            return mapper.readerFor(BenchmarkResultsArchive.class)
+                    .without(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).readValue(outputFile);
         } catch (Exception e) {
             System.err.println("WARNING: Could not read existing results archive at " + outputFile.getAbsolutePath()
                     + ". A new archive will be written. Reason: " + e.getMessage());

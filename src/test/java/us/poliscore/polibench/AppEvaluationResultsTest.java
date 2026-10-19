@@ -92,6 +92,24 @@ class AppEvaluationResultsTest {
         assertFalse(result.isAllNonparseable());
     }
 
+    @Test void metricsSeparateReadableTruncatedVerdictFromSuccessfulResponse() throws Exception {
+        Task task = createTask("x", "bill", "PASS", "rationale", Pillar.PRECISION);
+        var suite = new TestSuite(); suite.setPillar(Pillar.PRECISION); suite.setTasks(List.of(task));
+        var response = new ModelResponse("x", "Structural Analysis:\n1. Precision: Sound. <PASS>\n2. Evidence: unfinished", 20, 100);
+        var attempt = new ModelResponse.Attempt(); attempt.setFinishReason("length");
+        attempt.setCostUsd(new java.math.BigDecimal("0.02")); response.getAttempts().add(attempt);
+        var app = new App(); setPrivateField(app, "outputFile", tempDir.resolve("metrics.json").toFile());
+        var result = app.evaluateResults(new ObjectMapper(), List.of(suite), List.of(response), "test");
+        assertEquals(1, result.getMetrics().getReadableJudgments());
+        assertEquals(1, result.getMetrics().getCorrectJudgments());
+        assertEquals(100.0, result.getMetrics().getJudgmentAccuracyPercentage());
+        assertEquals(1, result.getMetrics().getIncompleteGenerations());
+        assertEquals(0, result.getMetrics().getCompleteReports());
+        assertEquals(1, result.getMetrics().getAttempts());
+        assertEquals(new java.math.BigDecimal("0.02"), result.getMetrics().getReportedCostUsd());
+        assertFalse(result.getPillarScores().get(Pillar.PRECISION).getTasks().get(0).isPassed());
+    }
+
     private static Task createTask(String id, String billText, String expected, String rationale, Pillar pillar) {
         Task task = new Task();
         task.setId(id);

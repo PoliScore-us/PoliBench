@@ -20,6 +20,27 @@ import us.poliscore.polibench.models.Pillar;
 public class BenchmarkResult {
     @NonNull private String modelId;
     private boolean allNonparseable;
+    private Metrics metrics;
+
+    @Data @NoArgsConstructor
+    public static class Metrics {
+        private int totalTasks;
+        private int readableJudgments;
+        private int correctJudgments;
+        private Double judgmentAccuracyPercentage;
+        private int structurallyValidResponses;
+        private double structuralReliabilityPercentage;
+        private int completeReports;
+        private double reportCompletionPercentage;
+        private int incompleteGenerations;
+        private int invalidFormats;
+        private int wrongVerdicts;
+        private int attempts;
+        private long promptTokens;
+        private long completionTokens;
+        private java.math.BigDecimal reportedCostUsd = java.math.BigDecimal.ZERO;
+        private boolean costAvailableForAllAttempts = true;
+    }
     @NonNull private Map<Pillar, PillarResult> pillarScores = new HashMap<Pillar, PillarResult>();
 
     @Data
@@ -56,5 +77,17 @@ public class BenchmarkResult {
         private String response;
         private boolean passed;
         private String error;
+        private String outcome;
+        private Boolean actualVerdict;
+        private Boolean judgmentCorrect;
+        private boolean structurallyValid;
+        private boolean reportComplete;
+        private java.util.List<us.poliscore.polibench.models.ModelResponse.Attempt> attempts;
+
+        public TaskResult(String id, String billText, String expected, String rationale, String response,
+                          boolean passed, String error) {
+            this.id = id; this.billText = billText; this.expected = expected; this.rationale = rationale;
+            this.response = response; this.passed = passed; this.error = error;
+        }
     }
 }

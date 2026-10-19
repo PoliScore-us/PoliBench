@@ -24,6 +24,20 @@ class RefreshTest(unittest.TestCase):
             "tasks": [{"id": pillar, "response": "wrong format", "passed": False, "error": "parse failure"}]}
             for pillar in PILLARS}}]}
 
+    def test_retry_budget_reserves_both_attempts_and_request_fees(self):
+        from decimal import Decimal
+        description = dict(self.description, maxAttempts=2, maxTotalCompletionTokens=300)
+        model = dict(self.model, pricing=dict(self.model["pricing"], request="0.01"))
+        self.assertEqual(estimated_cost(model, description), Decimal("0.55"))
+
+    def test_empty_final_answer_is_valid_only_as_incomplete_generation(self):
+        task = self.archive["results"][0]["pillarScores"]["Precision"]["tasks"][0]
+        task.update(response="", outcome="INCOMPLETE_GENERATION")
+        validate_result(self.archive, "openai/test", 7)
+        task["outcome"] = "CORRECT"
+        with self.assertRaises(ValueError):
+            validate_result(self.archive, "openai/test", 7)
+
     def test_skips_completed_model_but_runs_changed_benchmark_and_force(self):
         catalog = empty_catalog()
         catalog["runs"] = [self.entry]

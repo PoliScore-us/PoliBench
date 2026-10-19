@@ -150,4 +150,76 @@ class OpenRouterProviderTest {
         assertNotNull(pricingNode);
         assertEquals("openai/gpt-5-mini", pricingNode.path("id").asText());
     }
+
+    @Test void emptyContentNeverFallsBackToReasoningAndKeepsUsage() throws Exception {
+        Path file = tempDir.resolve("reasoning.jsonl");
+        Files.writeString(file, """
+            {"custom_id":"x","response":{"status_code":200,"body":{"id":"generation-x","provider":"Google","model":"google/gemini-3.8-flash","choices":[{"finish_reason":"length","native_finish_reason":"MAX_TOKENS","message":{"content":null,"reasoning":"Structural Analysis: fake answer"}}],"usage":{"prompt_tokens":10,"completion_tokens":100,"completion_tokens_details":{"reasoning_tokens":100},"cost":0.02}}}}
+            """);
+        var response = new OpenRouterProvider("google/gemini-3.8-flash").parseBatchResults(file.toString()).get(0);
+        assertEquals("", response.getContent());
+        assertTrue(response.isIncomplete()); assertTrue(OpenRouterProvider.shouldRetry(response));
+        assertEquals(100, response.getAttempts().get(0).getReasoningTokens());
+        assertEquals(0, response.getAttempts().get(0).getVisibleOutputTokens());
+        assertEquals("Google", response.getAttempts().get(0).getProvider());
+    }
+
+    @Test void retriesOnlyExplicitTruncationAndReplaysBothAttempts() throws Exception {
+        var calls = new java.util.ArrayList<JsonNode>();
+        OpenRouterProvider provider = new OpenRouterProvider("google/gemini-3.8-flash") {
+            @Override protected java.net.http.HttpResponse<String> sendCompletion(JsonNode body) {
+                calls.add(body.deepCopy());
+                String finish = calls.size() == 1 ? "length" : "stop";
+                String payload = "{\"choices\":[{\"finish_reason\":\"" + finish
+                    + "\",\"message\":{\"content\":\"Answer\"}}],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":100}}";
+                return (java.net.http.HttpResponse<String>) java.lang.reflect.Proxy.newProxyInstance(
+                    getClass().getClassLoader(), new Class<?>[]{java.net.http.HttpResponse.class},
+                    (proxy, method, args) -> switch (method.getName()) {
+                        case "statusCode" -> 200;
+                        case "body" -> payload;
+                        default -> throw new UnsupportedOperationException(method.getName());
+                    });
+            }
+        };
+        var request = new us.poliscore.polibench.models.ModelRequest("task", "system", "bill", null);
+        var method = OpenRouterProvider.class.getDeclaredMethod("executeRequest", us.poliscore.polibench.models.ModelRequest.class);
+        method.setAccessible(true);
+        Object outcome = method.invoke(provider, request);
+        var responseMethod = outcome.getClass().getDeclaredMethod("response"); responseMethod.setAccessible(true);
+        var response = (ModelResponse) responseMethod.invoke(outcome);
+        assertEquals(2, calls.size()); assertEquals(32768, calls.get(0).path("max_tokens").asInt());
+        assertEquals(65536, calls.get(1).path("max_tokens").asInt());
+        assertEquals(calls.get(0).path("reasoning"), calls.get(1).path("reasoning"));
+        assertEquals(2, response.getAttempts().size()); assertEquals(200, response.getCompletionTokens());
+        assertEquals(20, response.getPromptTokens()); assertFalse(OpenRouterProvider.shouldRetry(response));
+        var rowMethod = outcome.getClass().getDeclaredMethod("resultLine"); rowMethod.setAccessible(true);
+        Path file = tempDir.resolve("retry.jsonl"); Files.writeString(file, (String) rowMethod.invoke(outcome));
+        var replay = provider.parseBatchResults(file.toString()).get(0);
+        assertEquals(response.getAttempts(), replay.getAttempts());
+        assertFalse(OpenRouterProvider.shouldRetry(new ModelResponse("x", "", 0, 0)));
+    }
+
+    @Test void retryIsBoundedAndMalformedStopDoesNotRetry() throws Exception {
+        for (String finish : List.of("length", "stop", "content_filter")) {
+            var calls = new java.util.concurrent.atomic.AtomicInteger();
+            OpenRouterProvider provider = new OpenRouterProvider("google/gemini-3.8-flash") {
+                @Override protected java.net.http.HttpResponse<String> sendCompletion(JsonNode body) {
+                    calls.incrementAndGet();
+                    String payload = "{\"choices\":[{\"finish_reason\":\"" + finish
+                        + "\",\"message\":{\"content\":\"\"}}],\"usage\":{}}";
+                    return (java.net.http.HttpResponse<String>) java.lang.reflect.Proxy.newProxyInstance(
+                        getClass().getClassLoader(), new Class<?>[]{java.net.http.HttpResponse.class},
+                        (proxy, method, args) -> switch (method.getName()) {
+                            case "statusCode" -> 200;
+                            case "body" -> payload;
+                            default -> throw new UnsupportedOperationException(method.getName());
+                        });
+                }
+            };
+            var request = new us.poliscore.polibench.models.ModelRequest("x", "system", "bill", null);
+            var method = OpenRouterProvider.class.getDeclaredMethod("executeRequest", us.poliscore.polibench.models.ModelRequest.class);
+            method.setAccessible(true); method.invoke(provider, request);
+            assertEquals(finish.equals("length") ? 2 : 1, calls.get());
+        }
+    }
 }
