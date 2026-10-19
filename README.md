@@ -235,6 +235,26 @@ model/version pairs, and publishes immutable JSON results plus a live catalog to
 S3. See [automation setup and operation](automation/README.md) for GitHub variables,
 OIDC permissions, spending policy, frontend setup, recovery, and offline checks.
 
+Default refreshes resolve eleven curated slots from the live OpenRouter catalog:
+latest standard GPT Sol and Luna, Claude Sonnet and Haiku, pinned Gemini 3.8
+Flash and Gemini 4 Argon, latest standard numbered Grok, and latest DeepSeek Pro
+and Flash, and latest standard Qwen Max and Flash. Both pinned Gemini models request high reasoning; GPT models use
+medium reasoning. The exact selected IDs are saved in the run plan and results.
+
+`automation/models.json` defines these slots. Numeric version ordering selects
+release families, with catalog creation time selecting dated revisions. Grok uses
+catalog creation time because its numbering is not decimal-ordered (4.20 predates
+4.7). Full-ID matching excludes Pro upgrades of GPT, Claude Opus/Fable, batch,
+free, image, heavy, multi-agent and experimental variants. A missing slot fails
+planning explicitly instead of silently substituting another tier. Completed
+latest releases are skipped without falling back to older releases.
+
+The existing $25 budget and updated 11-model count limit remain; plan diagnostics
+identify model-count and budget skips separately. Explicit manual `--models`
+continues to override curated selection. The optional legacy
+`automation/claude-gemini.json` policy selects the broader backfill, not the
+scheduled default. Publication remains human-operated.
+
 Use `--describe /tmp/benchmark.json` to inspect request counts, prompt and generation
 limits without executing a provider. Execution errors now return a nonzero CLI
 exit code. The standalone runner no longer depends on the PoliScore core.
